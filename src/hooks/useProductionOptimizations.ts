@@ -243,9 +243,9 @@ export const useProductionOptimizations = (config?: Partial<OptimizationConfig>)
     const cacheManager = optimizeCaching();
 
     // Preload critical assets silently (no console errors)
-    preloadAssets([
-      '/assets/wine-hero.jpg', // Use correct Vite asset path
-    ]);
+    import('@/assets/wine-hero.jpg').then((module) => {
+      preloadAssets([module.default]);
+    }).catch(() => {}); // Silent fail
 
     return () => {
       if (cleanup) cleanup();
