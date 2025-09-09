@@ -29,6 +29,7 @@ import GeographicAnalysis from "./pages/GeographicAnalysis";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import ForgotPassword from "./pages/auth/ForgotPassword";
+import ResetPassword from "./pages/auth/ResetPassword";
 import NotFound from "./pages/NotFound";
 
 // Lazy load pages for better performance
@@ -83,6 +84,7 @@ const AppLayout = () => {
           <Route path="/auth/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
           <Route path="/auth/register" element={user ? <Navigate to="/dashboard" replace /> : <Register />} />
           <Route path="/auth/forgot-password" element={user ? <Navigate to="/dashboard" replace /> : <ForgotPassword />} />
+          <Route path="/auth/reset-password" element={user ? <Navigate to="/dashboard" replace /> : <ResetPassword />} />
           
           {/* Protected routes with lazy loading */}
           <Route path="/dashboard" element={
