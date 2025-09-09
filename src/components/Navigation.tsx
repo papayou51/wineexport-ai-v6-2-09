@@ -1,10 +1,45 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Menu, X, Grape } from "lucide-react";
 
 const Navigation = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
+
+  // Redirect authenticated users to dashboard
+  useEffect(() => {
+    if (!loading && user) {
+      navigate('/dashboard');
+    }
+  }, [user, loading, navigate]);
+
+  // Don't render navigation for authenticated users
+  if (loading) {
+    return (
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
+        <div className="container mx-auto px-6">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-gradient-to-br from-wine-deep to-wine-medium rounded-lg">
+                <Grape className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <span className="text-xl font-bold text-foreground">WineExport</span>
+                <span className="text-xl font-bold bg-gradient-to-r from-wine-deep to-wine-medium bg-clip-text text-transparent"> AI</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </nav>
+    );
+  }
+
+  if (user) {
+    return null; // AuthenticatedNavigation will be used instead
+  }
 
   const navItems = [
     { label: "Fonctionnalités", href: "#features" },
