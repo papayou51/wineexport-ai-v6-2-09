@@ -15,6 +15,8 @@ import { ProviderUsageChart } from '@/components/dashboard/ProviderUsageChart';
 import { ActivityTimeline } from '@/components/dashboard/ActivityTimeline';
 import { QualityTrendChart } from '@/components/dashboard/QualityTrendChart';
 import { MarketingIntelligenceWidget } from '@/components/dashboard/MarketingIntelligenceWidget';
+import { SmartAlert } from '@/components/SmartAlert';
+import { useMarketingIntelligenceAlerts } from '@/hooks/useMarketingIntelligenceAlerts';
 import { 
   Wine, 
   Globe, 
@@ -34,6 +36,9 @@ const Dashboard = () => {
   const { user } = useAuth();
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
   const { data: metrics, isLoading: metricsLoading } = useDashboardMetrics();
+  
+  // Activer les alertes intelligentes
+  useMarketingIntelligenceAlerts();
 
   if (statsLoading || metricsLoading) {
     return <LoadingSkeleton variant="card" count={8} className="container mx-auto px-4 py-8" />;
@@ -113,6 +118,14 @@ const Dashboard = () => {
       </div>
 
       <div className="container mx-auto px-4 py-8 space-y-8">
+        {/* Alertes intelligentes */}
+        <SmartAlert 
+          context={{ page: 'dashboard' }}
+          maxSuggestions={1}
+          showOnlyHighPriority={true}
+          className="mb-6"
+        />
+
         {/* Quick Actions - Section prioritaire */}
         <section>
           <h2 className="text-xl font-semibold mb-4">Actions rapides</h2>

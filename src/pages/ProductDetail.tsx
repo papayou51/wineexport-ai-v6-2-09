@@ -8,6 +8,8 @@ import { useProducts } from "@/hooks/useProducts";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useCreateProject } from "@/hooks/useProjects";
 import { MarketingIntelligenceShortcut } from "@/components/MarketingIntelligenceShortcut";
+import { SmartAlert } from "@/components/SmartAlert";
+import { useMarketingIntelligenceAlerts } from "@/hooks/useMarketingIntelligenceAlerts";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -23,6 +25,9 @@ const ProductDetail = () => {
   const { organization } = useOrganization();
   const { data: products } = useProducts(organization?.id);
   const createProject = useCreateProject();
+  
+  // Activer les alertes intelligentes pour ce produit
+  useMarketingIntelligenceAlerts();
   
   const [showAnalysisDialog, setShowAnalysisDialog] = useState(showAnalysisOption);
   const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
@@ -111,6 +116,12 @@ const ProductDetail = () => {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-4xl mx-auto space-y-6">
+        {/* Alertes contextuelles */}
+        <SmartAlert 
+          context={{ page: 'product', productId: id }}
+          className="mb-6"
+        />
+        
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
           <Button
