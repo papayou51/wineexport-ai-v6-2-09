@@ -232,8 +232,39 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
         
         // Add to local monitoring
         if (addExtractionResult) {
-          // Extract provider from the providers.runs array (get the successful one)
-          const successfulProvider = extractResult.providers?.runs?.find(run => run.ok === true)?.provider || 'unknown';
+          // Log the full structure to understand the response format
+          console.log('📋 [DEBUG] Full extract result structure:', extractResult);
+          console.log('📋 [DEBUG] Providers data:', extractResult.providers);
+          console.log('📋 [DEBUG] Metadata runs:', extractResult.metadata?.runs);
+          
+          // Extract provider with multiple fallback strategies
+          let successfulProvider = 'unknown';
+          
+          // Strategy 1: Check providers.runs array
+          if (extractResult.providers?.runs) {
+            const successfulRun = extractResult.providers.runs.find(run => run.ok === true || run.success === true);
+            if (successfulRun) {
+              successfulProvider = successfulRun.provider;
+            }
+          }
+          
+          // Strategy 2: Check metadata.runs array  
+          if (successfulProvider === 'unknown' && extractResult.metadata?.runs) {
+            const successfulRun = extractResult.metadata.runs.find(run => run.success === true);
+            if (successfulRun) {
+              successfulProvider = successfulRun.provider;
+            }
+          }
+          
+          // Strategy 3: Check direct provider field
+          if (successfulProvider === 'unknown' && extractResult.provider) {
+            successfulProvider = extractResult.provider;
+          }
+          
+          // Strategy 4: Check primaryProvider field
+          if (successfulProvider === 'unknown' && extractResult.primaryProvider) {
+            successfulProvider = extractResult.primaryProvider;
+          }
           
           console.log('🔄 [DEBUG] Adding extraction result to monitoring:', {
             provider: successfulProvider,
@@ -242,7 +273,7 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
             extractionTime: performance.now() - startTime,
             fileName: file.name,
             organizationId,
-            providersData: extractResult.providers
+            extractedProvider: successfulProvider
           });
           addExtractionResult({
             provider: successfulProvider,
