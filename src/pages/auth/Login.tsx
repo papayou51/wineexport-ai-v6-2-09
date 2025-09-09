@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -12,8 +12,15 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn } = useAuth();
+  const { signIn, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (!authLoading && user) {
+      navigate('/dashboard');
+    }
+  }, [user, authLoading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,6 +32,10 @@ const Login = () => {
       if (error) {
         if (error.message === 'Invalid login credentials') {
           toast.error('Email ou mot de passe incorrect');
+        } else if (error.message === 'Email not confirmed') {
+          toast.error('Veuillez confirmer votre email avant de vous connecter');
+        } else if (error.message === 'Too many requests') {
+          toast.error('Trop de tentatives. Veuillez réessayer dans quelques minutes');
         } else {
           toast.error(error.message);
         }

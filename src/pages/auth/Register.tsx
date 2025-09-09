@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -13,8 +13,15 @@ const Register = () => {
   const [password, setPassword] = useState('');
   const [organizationName, setOrganizationName] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signUp } = useAuth();
+  const { signUp, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (!authLoading && user) {
+      navigate('/dashboard');
+    }
+  }, [user, authLoading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,6 +33,10 @@ const Register = () => {
       if (error) {
         if (error.message === 'User already registered') {
           toast.error('Un compte existe déjà avec cet email');
+        } else if (error.message === 'Signup requires a valid password') {
+          toast.error('Le mot de passe doit contenir au moins 6 caractères');
+        } else if (error.message === 'Unable to validate email address: invalid format') {
+          toast.error('Format d\'email invalide');
         } else {
           toast.error(error.message);
         }

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +12,15 @@ const ForgotPassword = () => {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
-  const { resetPassword } = useAuth();
+  const { resetPassword, user, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (!authLoading && user) {
+      navigate('/dashboard');
+    }
+  }, [user, authLoading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,7 +30,13 @@ const ForgotPassword = () => {
       const { error } = await resetPassword(email);
       
       if (error) {
-        toast.error(error.message);
+        if (error.message === 'Unable to validate email address: invalid format') {
+          toast.error('Format d\'email invalide');
+        } else if (error.message === 'User not found') {
+          toast.error('Aucun compte associé à cet email');
+        } else {
+          toast.error(error.message);
+        }
       } else {
         setSent(true);
         toast.success('Email de récupération envoyé !');

@@ -10,6 +10,7 @@ import { GeographicSecurityTab } from "@/components/settings/GeographicSecurityT
 import { TrustedDevicesTab } from "@/components/settings/TrustedDevicesTab";
 import { SecurityIncidentsTab } from "@/components/settings/SecurityIncidentsTab";
 import { SecuritySystemTest } from "@/components/settings/SecuritySystemTest";
+import { SecurityStatus } from "@/components/SecurityStatus";
 import { User, Lock, Settings as SettingsIcon, Database, Bell, Shield } from "lucide-react";
 
 const Settings = () => {
@@ -66,12 +67,14 @@ const Settings = () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="security" className="mt-6">
+        <TabsContent value="security" className="mt-6 space-y-6">
+          <SecurityStatus />
+          
           <Card>
             <CardHeader>
-              <CardTitle>Sécurité</CardTitle>
+              <CardTitle>Changer le mot de passe</CardTitle>
               <CardDescription>
-                Gérez votre mot de passe et les paramètres de sécurité
+                Mettez à jour votre mot de passe pour sécuriser votre compte
               </CardDescription>
             </CardHeader>
             <CardContent>

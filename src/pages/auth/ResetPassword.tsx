@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { PasswordStrengthIndicator } from '@/components/ui/password-strength-indicator';
 import { toast } from 'sonner';
 import { Grape, ArrowLeft, CheckCircle } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 const ResetPassword = () => {
   const [password, setPassword] = useState('');
@@ -16,9 +17,17 @@ const ResetPassword = () => {
   const [success, setSuccess] = useState(false);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
 
   const accessToken = searchParams.get('access_token');
   const refreshToken = searchParams.get('refresh_token');
+
+  // Redirect if already logged in (except during password reset flow)
+  useEffect(() => {
+    if (!authLoading && user && !accessToken && !refreshToken) {
+      navigate('/dashboard');
+    }
+  }, [user, authLoading, navigate, accessToken, refreshToken]);
 
   useEffect(() => {
     // If no tokens in URL, redirect to forgot password
@@ -65,7 +74,13 @@ const ResetPassword = () => {
       });
 
       if (error) {
-        toast.error(error.message);
+        if (error.message === 'New password should be different from the old password.') {
+          toast.error('Le nouveau mot de passe doit être différent de l\'ancien');
+        } else if (error.message === 'Password should be at least 6 characters') {
+          toast.error('Le mot de passe doit contenir au moins 6 caractères');
+        } else {
+          toast.error(error.message);
+        }
       } else {
         setSuccess(true);
         toast.success('Mot de passe mis à jour avec succès');
