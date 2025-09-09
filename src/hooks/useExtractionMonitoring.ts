@@ -129,51 +129,68 @@ export const useExtractionMonitoring = (organizationId: string) => {
 
     setRealTimeMetrics(prev => {
       const updatedExtractions = [newResult, ...prev.recentExtractions].slice(0, 10);
-      const allExtractions = [...updatedExtractions, ...prev.recentExtractions.slice(0, 90)];
       
-      // Recalculate metrics
+      // Recalculate metrics based on all extractions (including the new one)
       const totalExtractions = prev.totalExtractions + 1;
-      const successfulExtractions = allExtractions.filter(e => e.success);
-      const successRate = totalExtractions > 0 ? (successfulExtractions.length / totalExtractions) * 100 : 0;
+      const successfulExtractions = updatedExtractions.filter(e => e.success);
+      const successRate = totalExtractions > 0 ? (successfulExtractions.length / Math.min(totalExtractions, updatedExtractions.length)) * 100 : 0;
       
-      const qualityScores = allExtractions
+      const qualityScores = updatedExtractions
         .filter(e => e.success && e.qualityScore !== undefined)
         .map(e => e.qualityScore!);
       const averageQuality = qualityScores.length > 0 
         ? qualityScores.reduce((sum, score) => sum + score, 0) / qualityScores.length 
         : 0;
 
-      const extractionTimes = allExtractions.map(e => e.extractionTime).filter(t => t > 0);
+      const extractionTimes = updatedExtractions.map(e => e.extractionTime).filter(t => t > 0);
       const averageTime = extractionTimes.length > 0
         ? extractionTimes.reduce((sum, time) => sum + time, 0) / extractionTimes.length
         : 0;
 
-      // Calculate provider usage based on winning provider per analysis
+      // Calculate provider usage based on recent extractions
       const providerUsage = { anthropic: 0, google: 0, openai: 0, fallback: 0 };
       let openaiWins = 0, anthropicWins = 0, googleWins = 0, failed = 0;
 
-      allExtractions.forEach(extraction => {
-        const runs = extraction.providers?.runs || [];
-        const winner = runs.find(x => x.ok === true);
-        
-        if (!winner) {
+      updatedExtractions.forEach(extraction => {
+        if (extraction.success) {
+          const runs = extraction.providers?.runs || [];
+          const winner = runs.find(x => x.ok === true);
+          
+          if (!winner) {
+            // Check the direct provider field as fallback
+            if (extraction.provider === "openai") openaiWins++;
+            else if (extraction.provider === "anthropic") anthropicWins++;
+            else if (extraction.provider === "google") googleWins++;
+            else failed++;
+          } else if (winner.provider === "openai") {
+            openaiWins++;
+          } else if (winner.provider === "anthropic") {
+            anthropicWins++;
+          } else if (winner.provider === "google") {
+            googleWins++;
+          }
+        } else {
           failed++;
-        } else if (winner.provider === "openai") {
-          openaiWins++;
-        } else if (winner.provider === "anthropic") {
-          anthropicWins++;
-        } else if (winner.provider === "google") {
-          googleWins++;
         }
       });
 
-      if (totalExtractions > 0) {
-        const share = (n: number) => Math.round(1000 * n / totalExtractions) / 10;
+      const totalProcessed = updatedExtractions.length;
+      if (totalProcessed > 0) {
+        const share = (n: number) => Math.round(1000 * n / totalProcessed) / 10;
         providerUsage.openai = share(openaiWins);
         providerUsage.anthropic = share(anthropicWins);
         providerUsage.google = share(googleWins);
         providerUsage.fallback = share(failed);
       }
+
+      console.log('📊 [DEBUG] Updated metrics:', {
+        totalExtractions,
+        successRate,
+        averageQuality,
+        averageTime,
+        providerUsage,
+        extractionsCount: updatedExtractions.length
+      });
 
       return {
         totalExtractions,

@@ -232,20 +232,25 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
         
         // Add to local monitoring
         if (addExtractionResult) {
+          // Extract provider from the providers.runs array (get the successful one)
+          const successfulProvider = extractResult.providers?.runs?.find(run => run.ok === true)?.provider || 'unknown';
+          
           console.log('🔄 [DEBUG] Adding extraction result to monitoring:', {
-            provider: extractResult.metadata?.provider || 'unknown',
+            provider: successfulProvider,
             success: true,
             qualityScore: quality.score,
             extractionTime: performance.now() - startTime,
             fileName: file.name,
-            organizationId
+            organizationId,
+            providersData: extractResult.providers
           });
           addExtractionResult({
-            provider: extractResult.metadata?.provider || 'unknown',
+            provider: successfulProvider,
             success: true,
             qualityScore: quality.score,
             extractionTime: performance.now() - startTime,
-            fileName: file.name
+            fileName: file.name,
+            providers: extractResult.providers
           });
         } else {
           console.log('⚠️ [DEBUG] addExtractionResult function not provided');
