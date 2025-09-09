@@ -151,28 +151,43 @@ export const useExtractionMonitoring = (organizationId: string) => {
       const providerUsage = { anthropic: 0, google: 0, openai: 0, fallback: 0 };
       let openaiWins = 0, anthropicWins = 0, googleWins = 0, failed = 0;
 
+      console.log('📊 [DEBUG] Calculating metrics for extractions:', updatedExtractions.map(e => ({ 
+        provider: e.provider, 
+        success: e.success, 
+        hasProviders: !!e.providers,
+        providersRuns: e.providers?.runs?.length || 0 
+      })));
+
       updatedExtractions.forEach(extraction => {
         if (extraction.success) {
-          const runs = extraction.providers?.runs || [];
-          const winner = runs.find(x => x.ok === true);
-          
-          if (!winner) {
-            // Check the direct provider field as fallback
-            if (extraction.provider === "openai") openaiWins++;
-            else if (extraction.provider === "anthropic") anthropicWins++;
-            else if (extraction.provider === "google") googleWins++;
-            else failed++;
-          } else if (winner.provider === "openai") {
+          // Primary strategy: Use the direct provider field (most reliable)
+          if (extraction.provider === "openai") {
             openaiWins++;
-          } else if (winner.provider === "anthropic") {
-            anthropicWins++;
-          } else if (winner.provider === "google") {
+          } else if (extraction.provider === "anthropic") {
+            anthropicWins++;  
+          } else if (extraction.provider === "google") {
             googleWins++;
+          } else {
+            // Fallback: Try to extract from providers.runs if direct provider is unknown
+            const runs = extraction.providers?.runs || [];
+            const winner = runs.find(x => x.ok === true);
+            
+            if (winner?.provider === "openai") {
+              openaiWins++;
+            } else if (winner?.provider === "anthropic") {
+              anthropicWins++;
+            } else if (winner?.provider === "google") {
+              googleWins++;
+            } else {
+              failed++;
+            }
           }
         } else {
           failed++;
         }
       });
+
+      console.log('📊 [DEBUG] Provider wins:', { openaiWins, anthropicWins, googleWins, failed });
 
       const totalProcessed = updatedExtractions.length;
       if (totalProcessed > 0) {
