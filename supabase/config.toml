@@ -1,0 +1,7 @@
+project_id = "gbuyfwlhxfwecitjtxii"
+
+[functions.ai-self-test]
+verify_jwt = false
+
+[functions.spec-health]
+verify_jwt = false

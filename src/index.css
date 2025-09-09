@@ -1,0 +1,130 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* WineExport AI Design System - Inspired by wine industry elegance */
+
+@layer base {
+  :root {
+    /* Core wine-inspired palette */
+    --background: 41 15% 97%;
+    --foreground: 343 13% 12%;
+
+    --card: 41 25% 98%;
+    --card-foreground: 343 13% 12%;
+
+    --popover: 41 25% 98%;
+    --popover-foreground: 343 13% 12%;
+
+    /* Primary - Deep wine burgundy */
+    --primary: 343 42% 24%;
+    --primary-foreground: 41 15% 97%;
+
+    /* Secondary - Warm gold */
+    --secondary: 41 88% 88%;
+    --secondary-foreground: 343 42% 24%;
+
+    /* Muted - Subtle wine tones */
+    --muted: 343 8% 92%;
+    --muted-foreground: 343 13% 46%;
+
+    /* Accent - Rich wine red */
+    --accent: 343 55% 35%;
+    --accent-foreground: 41 15% 97%;
+
+    /* Destructive */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 41 15% 97%;
+
+    /* Borders and inputs - Subtle wine tones */
+    --border: 343 12% 88%;
+    --input: 343 12% 88%;
+    --ring: 343 42% 24%;
+
+    --radius: 0.75rem;
+
+    /* Wine industry specific colors */
+    --wine-deep: 343 42% 24%;
+    --wine-medium: 343 55% 35%;
+    --wine-light: 343 25% 65%;
+    --gold: 41 88% 65%;
+    --gold-light: 41 88% 88%;
+    --champagne: 41 15% 97%;
+
+    /* Gradients */
+    --gradient-wine: linear-gradient(135deg, hsl(var(--wine-deep)), hsl(var(--wine-medium)));
+    --gradient-gold: linear-gradient(135deg, hsl(var(--gold)), hsl(var(--gold-light)));
+    --gradient-hero: linear-gradient(135deg, hsl(var(--wine-deep)) 0%, hsl(var(--wine-medium)) 50%, hsl(var(--gold)) 100%);
+
+    /* Shadows */
+    --shadow-wine: 0 10px 30px -10px hsl(var(--wine-deep) / 0.2);
+    --shadow-gold: 0 4px 20px -4px hsl(var(--gold) / 0.3);
+
+    /* Sidebar colors */
+    --sidebar-background: 41 25% 98%;
+    --sidebar-foreground: 343 13% 26%;
+    --sidebar-primary: 343 42% 24%;
+    --sidebar-primary-foreground: 41 15% 97%;
+    --sidebar-accent: 343 8% 92%;
+    --sidebar-accent-foreground: 343 42% 24%;
+    --sidebar-border: 343 12% 88%;
+    --sidebar-ring: 343 42% 24%;
+  }
+
+  .dark {
+    /* Dark theme with wine elegance */
+    --background: 343 20% 8%;
+    --foreground: 41 15% 95%;
+
+    --card: 343 20% 10%;
+    --card-foreground: 41 15% 95%;
+
+    --popover: 343 20% 10%;
+    --popover-foreground: 41 15% 95%;
+
+    --primary: 41 88% 65%;
+    --primary-foreground: 343 20% 8%;
+
+    --secondary: 343 15% 15%;
+    --secondary-foreground: 41 15% 95%;
+
+    --muted: 343 15% 15%;
+    --muted-foreground: 343 8% 65%;
+
+    --accent: 343 55% 45%;
+    --accent-foreground: 41 15% 95%;
+
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 41 15% 95%;
+
+    --border: 343 15% 20%;
+    --input: 343 15% 20%;
+    --ring: 41 88% 65%;
+
+    /* Dark wine theme specific colors */
+    --wine-deep: 343 55% 25%;
+    --wine-medium: 343 55% 35%;
+    --wine-light: 343 35% 55%;
+    --gold: 41 88% 65%;
+    --gold-light: 41 88% 75%;
+
+    --sidebar-background: 343 20% 8%;
+    --sidebar-foreground: 41 15% 85%;
+    --sidebar-primary: 41 88% 65%;
+    --sidebar-primary-foreground: 343 20% 8%;
+    --sidebar-accent: 343 15% 15%;
+    --sidebar-accent-foreground: 41 15% 85%;
+    --sidebar-border: 343 15% 20%;
+    --sidebar-ring: 41 88% 65%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
