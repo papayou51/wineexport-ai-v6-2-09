@@ -27,6 +27,30 @@ function validateModels() {
   }
 }
 
+function validateProviderConfig() {
+  const providersEnabled = Deno.env.get("PROVIDERS_ENABLED") || "";
+  
+  // Check if PROVIDERS_ENABLED contains API keys instead of provider names
+  if (/^sk-|^AIza|^ant-/.test(providersEnabled)) {
+    console.error("❌ PROVIDERS_ENABLED contient une clé API au lieu d'une liste de providers!");
+    console.error("   Format attendu: 'openai,anthropic,google'");
+    console.error("   Format reçu:", providersEnabled.substring(0, 20) + "...");
+    throw new Error("PROVIDERS_ENABLED mal configuré: contient une clé API au lieu de noms de providers");
+  }
+  
+  // Validate provider names
+  const validProviders = ["openai", "anthropic", "google"];
+  const enabledProviders = providersEnabled.split(",").map(p => p.trim()).filter(p => p);
+  
+  for (const provider of enabledProviders) {
+    if (!validProviders.includes(provider)) {
+      console.warn(`⚠️ Provider inconnu dans PROVIDERS_ENABLED: ${provider}`);
+    }
+  }
+  
+  console.log("✅ Configuration des providers validée:", enabledProviders);
+}
+
 async function safeCall<T>(fn: () => Promise<T>, provider: Probe["provider"]): Promise<Probe> {
   const t0 = Date.now();
   try {
@@ -76,6 +100,7 @@ export async function runOrchestrator({
   maxCharsPerChunk?: number 
 }) {
   validateModels();
+  validateProviderConfig();
 
   // Enhanced provider orchestration strategy
   const primary = (Deno.env.get("PRIMARY_PROVIDER") || "openai").toLowerCase();

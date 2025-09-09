@@ -86,8 +86,21 @@ serve(async (req) => {
       anthropic: !!Deno.env.get("ANTHROPIC_API_KEY") ? 'configured' : 'missing',
       google: !!Deno.env.get("GOOGLE_API_KEY") ? 'configured' : 'missing'
     });
+    
+    // Enhanced provider validation with detailed diagnostics
+    const rawProvidersEnabled = Deno.env.get("PROVIDERS_ENABLED") || "";
+    console.log('📋 Raw PROVIDERS_ENABLED value:', rawProvidersEnabled.length > 50 ? rawProvidersEnabled.substring(0, 50) + "..." : rawProvidersEnabled);
+    
+    // Check if PROVIDERS_ENABLED contains API keys instead of provider names
+    if (/^sk-|^AIza|^ant-/.test(rawProvidersEnabled)) {
+      console.error('❌ CRITICAL: PROVIDERS_ENABLED contient une clé API au lieu de noms de providers!');
+      console.error('   Format attendu: "openai,anthropic,google"');
+      console.error('   Format reçu: clé API détectée');
+      console.error('   Action requise: Mettre à jour PROVIDERS_ENABLED avec les noms de providers');
+    }
+    
     console.log('📋 Providers enabled:', providersEnabled);
-    console.log('🎯 REQUIRE_LLM mode:', REQUIRE_LLM);
+    console.log('🎯 REQUIRE_LLM mode:', REQUIRE_LLM;
 
     if (REQUIRE_LLM && (!providersEnabled.length || !hasAnyKey)) {
       return new Response(JSON.stringify({
