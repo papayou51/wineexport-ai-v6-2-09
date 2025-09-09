@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Zap, Globe, Calendar, Award, FileText } from "lucide-react";
+import { ArrowLeft, Zap, Globe, Calendar, Award, FileText, Lightbulb, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useProducts } from "@/hooks/useProducts";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useCreateProject } from "@/hooks/useProjects";
+import { MarketingIntelligenceShortcut } from "@/components/MarketingIntelligenceShortcut";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -129,14 +130,31 @@ const ProductDetail = () => {
               {product.appellation && ` • ${product.appellation}`}
             </p>
           </div>
-          <Button 
-            onClick={() => setShowAnalysisDialog(true)}
-            className="flex items-center gap-2"
-          >
-            <Zap className="h-4 w-4" />
-            Lancer l'analyse complète
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline"
+              onClick={() => navigate(`/projects/new?product=${product.id}&focus=marketing`)}
+              className="flex items-center gap-2"
+            >
+              <Lightbulb className="h-4 w-4" />
+              Intelligence Marketing
+            </Button>
+            <Button 
+              onClick={() => setShowAnalysisDialog(true)}
+              className="flex items-center gap-2"
+            >
+              <Zap className="h-4 w-4" />
+              Analyse complète
+            </Button>
+          </div>
         </div>
+
+        {/* Marketing Intelligence Shortcut */}
+        <MarketingIntelligenceShortcut 
+          productId={product.id}
+          productName={product.name}
+          className="mb-6"
+        />
 
         {/* Product Details */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

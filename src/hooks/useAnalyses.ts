@@ -15,6 +15,28 @@ export interface Analysis {
   created_at: string;
 }
 
+export const useAnalyses = (organizationId?: string) => {
+  return useQuery({
+    queryKey: ['analyses', 'organization', organizationId],
+    queryFn: async () => {
+      if (!organizationId) return [];
+      
+      const { data, error } = await supabase
+        .from('analyses')
+        .select(`
+          *,
+          projects!inner(organization_id)
+        `)
+        .eq('projects.organization_id', organizationId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data as Analysis[];
+    },
+    enabled: !!organizationId,
+  });
+};
+
 export const useProjectAnalyses = (projectId: string) => {
   return useQuery({
     queryKey: ['analyses', projectId],

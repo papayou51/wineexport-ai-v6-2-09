@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Search, Wine, Calendar, Award } from "lucide-react";
+import { Plus, Search, Wine, Calendar, Award, Lightbulb } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -161,6 +161,21 @@ const Products = () => {
                       )}
                     </div>
                   )}
+
+                  <div className="pt-2 border-t">
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="w-full text-xs"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/projects/new?product=${product.id}&focus=marketing`);
+                      }}
+                    >
+                      <Lightbulb className="h-3 w-3 mr-1" />
+                      Intelligence Marketing
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))}

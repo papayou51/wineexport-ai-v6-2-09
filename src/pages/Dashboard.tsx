@@ -14,6 +14,7 @@ import { ExtractionTrendsChart } from '@/components/dashboard/ExtractionTrendsCh
 import { ProviderUsageChart } from '@/components/dashboard/ProviderUsageChart';
 import { ActivityTimeline } from '@/components/dashboard/ActivityTimeline';
 import { QualityTrendChart } from '@/components/dashboard/QualityTrendChart';
+import { MarketingIntelligenceWidget } from '@/components/dashboard/MarketingIntelligenceWidget';
 import { 
   Wine, 
   Globe, 
@@ -25,7 +26,8 @@ import {
   TrendingUp,
   FolderOpen,
   Activity,
-  Zap
+  Zap,
+  Lightbulb
 } from 'lucide-react';
 
 const Dashboard = () => {
@@ -222,6 +224,7 @@ const Dashboard = () => {
                 recentExtractions={metrics.recentExtractions}
               />
               <GeographicOverview topCountries={metrics.topCountries} />
+              <MarketingIntelligenceWidget />
             </div>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
