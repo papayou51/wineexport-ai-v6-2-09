@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Globe, Search, FileText, TrendingUp } from "lucide-react";
+import { Link } from "react-router-dom";
 import heroImage from "@/assets/wine-hero.jpg";
 
 const Hero = () => {
@@ -35,14 +36,18 @@ const Hero = () => {
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Button variant="hero" size="lg" className="text-lg px-8 py-6">
-              <Globe className="mr-2" />
-              Commencer l'analyse
-            </Button>
-            <Button variant="outline" size="lg" className="text-lg px-8 py-6 border-white/30 text-white hover:bg-white/10">
-              <FileText className="mr-2" />
-              Voir la démo
-            </Button>
+            <Link to="/auth/register">
+              <Button variant="hero" size="lg" className="text-lg px-8 py-6">
+                <Globe className="mr-2" />
+                Commencer l'analyse
+              </Button>
+            </Link>
+            <Link to="/auth/login">
+              <Button variant="outline" size="lg" className="text-lg px-8 py-6 border-white/30 text-white hover:bg-white/10">
+                <FileText className="mr-2" />
+                Se connecter
+              </Button>
+            </Link>
           </div>
 
           {/* Features Grid */}
