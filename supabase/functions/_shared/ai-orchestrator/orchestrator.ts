@@ -37,12 +37,19 @@ async function safeCall<T>(fn: () => Promise<T>, provider: Probe["provider"]): P
     const msg = e?.message ?? "unknown";
     let code: string | null = e?.code ?? null;
     
-    // Enhanced error detection
+    // Enhanced error detection with quota intelligence
     if (status === 401) code = "unauthorized";
-    else if (status === 429 || /quota|rate.?limit/i.test(msg)) code = "rate_limited";
+    else if (status === 429 || /quota|rate.?limit|insufficient.*quota|exceeded.*quota/i.test(msg)) {
+      code = "rate_limited";
+      console.warn(`🚨 ${provider} quota exceeded - marking for fallback`);
+    }
     else if (/model.*not.*found|invalid.*model/i.test(msg)) code = "invalid_model";
     else if (status === 400 && /context|length|too\s+long/i.test(msg)) code = "context_length_exceeded";
     else if (status === 400 && /response_format|tool_choice|tools/i.test(msg)) code = "invalid_request";
+    else if (/billing|payment|subscription/i.test(msg)) {
+      code = "billing_issue";
+      console.warn(`💳 ${provider} billing issue - provider unavailable`);
+    }
     
     console.error(`❌ ${provider} provider failed:`, {
       status: status ?? null,

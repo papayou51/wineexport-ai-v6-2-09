@@ -303,31 +303,75 @@ serve(async (req) => {
     // 5) Compute quality score
     const quality = computeQuality(validated, { citations: validated.citations });
 
-    // Quality adjustment for OCR content
-    const wCitations = (metaSource === "ocr") ? 0.05 : 0.20; // Reduced citation penalty for OCR
-    const adjustedQuality = computeQuality(fused, { 
-      citations: fused?.citations,
-      meta: { source: metaSource, citationWeight: wCitations }
+    // Adaptive quality assessment with intelligent thresholds
+    const activeProviders = successes.length;
+    const hasQuotaIssues = failures.some(f => f.code === "rate_limited" || f.code === "billing_issue");
+    
+    const adjustedQuality = computeQuality(validated, { 
+      citations: validated?.citations,
+      providers: successes.concat(failures)
     });
     
-    console.log(`📊 Quality computed: ${adjustedQuality}% (source: ${metaSource})`);
+    console.log(`📊 Quality computed: ${adjustedQuality}% (source: ${metaSource}, providers: ${activeProviders})`);
     
-    // Calculate coverage (number of filled fields)
+    // Critical fields for wine products (minimum viable extraction)
+    const criticalFields = ["productName", "producer", "region", "country"];
+    const filledCriticalFields = criticalFields.filter(key => {
+      const value = validated[key];
+      return value !== null && value !== "" && !(Array.isArray(value) && value.length === 0);
+    }).length;
+    
+    // Total filled fields
     const filledFields = Object.keys(validated).filter(key => {
       const value = validated[key];
       return value !== null && value !== "" && !(Array.isArray(value) && value.length === 0);
     }).length;
     
-    if (adjustedQuality < 20 || filledFields < 3) {
-      console.log('❌ Spec quality too low:', { quality: adjustedQuality, filledFields, source: metaSource });
+    // Adaptive quality thresholds based on context
+    let qualityThreshold = 20; // Default
+    let minFieldsThreshold = 3; // Default
+    
+    if (hasQuotaIssues) {
+      qualityThreshold = 12; // Reduced for quota constraints
+      minFieldsThreshold = 2; // Accept with 2 fields when quotas are limited
+      console.log('📉 Using relaxed thresholds due to API quota constraints');
+    }
+    
+    if (activeProviders === 1) {
+      qualityThreshold = Math.max(10, qualityThreshold - 5); // Single provider gets easier threshold
+      console.log('🔄 Using single-provider threshold adjustment');
+    }
+    
+    // Check if we meet minimum viable extraction criteria
+    const hasMinimumViableData = filledCriticalFields >= 1 && filledFields >= minFieldsThreshold;
+    const meetsQualityThreshold = adjustedQuality >= qualityThreshold;
+    
+    if (!meetsQualityThreshold && !hasMinimumViableData) {
+      console.log('❌ Spec quality insufficient:', { 
+        quality: adjustedQuality, 
+        threshold: qualityThreshold,
+        filledFields, 
+        criticalFields: filledCriticalFields,
+        source: metaSource 
+      });
+      
       return new Response(JSON.stringify({
         success: false,
         error: "LOW_QUALITY_EXTRACTION",
-        details: `Qualité d'extraction trop faible (${adjustedQuality}%). Le document pourrait nécessiter un traitement manuel.`,
+        details: hasQuotaIssues 
+          ? `Extraction partielle (${adjustedQuality}%) - Quotas API limités. Réessayez plus tard ou contactez le support.`
+          : `Qualité d'extraction insuffisante (${adjustedQuality}%). Le document pourrait nécessiter un traitement manuel.`,
         providers: { runs: failures.concat(successes) },
         qualityScore: adjustedQuality,
         extractionSource: metaSource,
-        meta: { source: metaSource, totalLength, pagesProcessed: pages.length }
+        partialData: hasMinimumViableData ? validated : null,
+        meta: { 
+          source: metaSource, 
+          totalLength, 
+          pagesProcessed: pages.length,
+          quotaIssues: hasQuotaIssues,
+          thresholdUsed: qualityThreshold
+        }
       }), { 
         status: 200, 
         headers: { ...corsHeaders, "Content-Type": "application/json" }

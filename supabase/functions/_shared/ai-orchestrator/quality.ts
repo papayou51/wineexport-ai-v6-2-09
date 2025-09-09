@@ -1,4 +1,4 @@
-export function computeQuality(spec: any, meta?: {citations?: Record<string, number[]>}) {
+export function computeQuality(spec: any, meta?: {citations?: Record<string, number[]>, providers?: any[]}) {
   // Define key fields for wine/spirits product data
   const keys = [
     "productName", "producer", "brand", "appellation", "region", "country",
@@ -18,12 +18,12 @@ export function computeQuality(spec: any, meta?: {citations?: Record<string, num
 
   // Calculate consistency (basic validation checks)
   const consistency = [
-    // ABV should be reasonable (5-75%)
-    (spec?.abv_percent >= 5 && spec?.abv_percent <= 75) ? 1 : 0,
-    // Vintage should be reasonable (1990-current year + 1)
-    (spec?.vintage >= 1990 && spec?.vintage <= (new Date().getFullYear() + 1)) ? 1 : 0,
-    // Grapes array should exist and have content
-    (Array.isArray(spec?.grapes) && spec?.grapes.length) ? 1 : 0
+    // ABV should be reasonable (5-75%) - or null/undefined (partial extraction)
+    (spec?.abv_percent == null || (spec?.abv_percent >= 5 && spec?.abv_percent <= 75)) ? 1 : 0,
+    // Vintage should be reasonable (1990-current year + 1) - or null/undefined
+    (spec?.vintage == null || (spec?.vintage >= 1990 && spec?.vintage <= (new Date().getFullYear() + 1))) ? 1 : 0,
+    // Grapes array should exist and have content - or be null/undefined for partial extraction
+    (spec?.grapes == null || (Array.isArray(spec?.grapes) && spec?.grapes.length)) ? 1 : 0
   ];
   
   const consistencyScore = consistency.reduce((a, b) => a + b, 0) / consistency.length;
@@ -31,10 +31,14 @@ export function computeQuality(spec: any, meta?: {citations?: Record<string, num
   // Check for citations (indicates AI actually read the document)
   const hasCitations = meta?.citations && Object.keys(meta.citations).length > 0 ? 1 : 0;
 
-  // Weighted combination
-  const wCoverage = 0.55;      // Most important: how complete is the data
-  const wConsistency = 0.25;   // Are the values reasonable
-  const wCitations = 0.20;     // Does it reference source pages
+  // Adaptive weighting based on provider availability and quota constraints
+  const activeProviders = meta?.providers?.filter(p => p.ok).length ?? 1;
+  const quotaConstrained = activeProviders < 2; // Less than 2 providers suggests quota issues
+  
+  // Weighted combination - reduce citation weight when quota constrained
+  const wCoverage = 0.60;      // Increased: Most important is data completeness
+  const wConsistency = 0.30;   // Increased: Data validity matters more
+  const wCitations = quotaConstrained ? 0.10 : 0.20; // Reduced when APIs limited
 
   const finalScore = wCoverage * coverage + wConsistency * consistencyScore + wCitations * hasCitations;
   
