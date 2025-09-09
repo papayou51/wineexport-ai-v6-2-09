@@ -30,6 +30,7 @@ import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 import ResetPassword from "./pages/auth/ResetPassword";
+import AuthTest from "./pages/AuthTest";
 import NotFound from "./pages/NotFound";
 
 // Lazy load pages for better performance
@@ -170,6 +171,11 @@ const AppLayout = () => {
           <Route path="/monitoring" element={
             <ProtectedRoute>
               <Monitoring />
+            </ProtectedRoute>
+          } />
+          <Route path="/auth/test" element={
+            <ProtectedRoute>
+              <AuthTest />
             </ProtectedRoute>
           } />
           
