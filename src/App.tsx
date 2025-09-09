@@ -42,6 +42,7 @@ const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const Testing = lazy(() => import("./pages/Testing"));
 const Settings = lazy(() => import("./pages/Settings"));
 const Monitoring = lazy(() => import("./pages/Monitoring"));
+const MarketingTools = lazy(() => import("./pages/MarketingTools"));
 
 const queryClient = new QueryClient();
 
@@ -171,6 +172,11 @@ const AppLayout = () => {
           <Route path="/monitoring" element={
             <ProtectedRoute>
               <Monitoring />
+            </ProtectedRoute>
+          } />
+          <Route path="/marketing-tools" element={
+            <ProtectedRoute>
+              <MarketingTools />
             </ProtectedRoute>
           } />
           <Route path="/auth/test" element={
