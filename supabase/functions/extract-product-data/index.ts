@@ -100,7 +100,7 @@ serve(async (req) => {
     }
     
     console.log('📋 Providers enabled:', providersEnabled);
-    console.log('🎯 REQUIRE_LLM mode:', REQUIRE_LLM;
+    console.log('🎯 REQUIRE_LLM mode:', REQUIRE_LLM);
 
     if (REQUIRE_LLM && (!providersEnabled.length || !hasAnyKey)) {
       return new Response(JSON.stringify({
