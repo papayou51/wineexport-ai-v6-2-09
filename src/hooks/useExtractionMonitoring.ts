@@ -121,6 +121,12 @@ export const useExtractionMonitoring = (organizationId: string) => {
       timestamp: new Date()
     };
 
+    console.log('📊 [DEBUG] Processing extraction result for monitoring:', {
+      organizationId,
+      result: newResult,
+      storageKey: `${STORAGE_KEY}_${organizationId}`
+    });
+
     setRealTimeMetrics(prev => {
       const updatedExtractions = [newResult, ...prev.recentExtractions].slice(0, 10);
       const allExtractions = [...updatedExtractions, ...prev.recentExtractions.slice(0, 90)];

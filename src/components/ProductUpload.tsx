@@ -232,6 +232,14 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
         
         // Add to local monitoring
         if (addExtractionResult) {
+          console.log('🔄 [DEBUG] Adding extraction result to monitoring:', {
+            provider: extractResult.metadata?.provider || 'unknown',
+            success: true,
+            qualityScore: quality.score,
+            extractionTime: performance.now() - startTime,
+            fileName: file.name,
+            organizationId
+          });
           addExtractionResult({
             provider: extractResult.metadata?.provider || 'unknown',
             success: true,
@@ -239,6 +247,8 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
             extractionTime: performance.now() - startTime,
             fileName: file.name
           });
+        } else {
+          console.log('⚠️ [DEBUG] addExtractionResult function not provided');
         }
         
         onDataExtracted(extractResult.extractedData, extractResult.extractedText, quality.score);
