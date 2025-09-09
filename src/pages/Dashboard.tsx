@@ -29,7 +29,8 @@ import {
   FolderOpen,
   Activity,
   Zap,
-  Lightbulb
+  Lightbulb,
+  Sparkles
 } from 'lucide-react';
 
 const Dashboard = () => {
@@ -58,6 +59,13 @@ const Dashboard = () => {
       icon: FolderOpen,
       href: '/projects/new',
       color: 'bg-accent'
+    },
+    {
+      title: 'Outils Marketing',
+      description: 'Contenus et budgets marketing',
+      icon: Sparkles,
+      href: '/marketing-tools',
+      color: 'bg-wine-deep'
     },
     {
       title: 'Voir mes projets',

@@ -19,7 +19,8 @@ import {
   Package,
   BarChart3,
   FileText,
-  Home
+  Home,
+  Sparkles
 } from 'lucide-react';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import KeyboardShortcutsHelp from "@/components/ui/keyboard-shortcuts-help";
@@ -36,6 +37,7 @@ const AuthenticatedNavigation = () => {
     { name: 'Produits', href: '/products', icon: Package },
     { name: 'Projets', href: '/projects', icon: FileText },
     { name: 'Analyses', href: '/analyses', icon: BarChart3 },
+    { name: 'Outils Marketing', href: '/marketing-tools', icon: Sparkles },
     { name: 'Rapports', href: '/reports', icon: FileText },
     { name: 'Monitoring', href: '/monitoring', icon: BarChart3 },
   ];

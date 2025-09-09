@@ -5,8 +5,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { MarketingContentGenerator } from '@/components/MarketingContentGenerator';
 import { MarketingBudgetCalculator } from '@/components/MarketingBudgetCalculator';
+import { MarketingCalendar } from '@/components/marketing/MarketingCalendar';
+import { CustomerPersonas } from '@/components/marketing/CustomerPersonas';
 import { useProducts } from '@/hooks/useProducts';
-import { Sparkles, Calculator, ArrowLeft } from 'lucide-react';
+import { Sparkles, Calculator, ArrowLeft, Calendar, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 
@@ -93,14 +95,22 @@ export const MarketingTools = () => {
         {/* Outils Marketing */}
         {selectedProduct && selectedProductData ? (
           <Tabs defaultValue="content" className="w-full">
-            <TabsList className="grid grid-cols-2 w-full mb-8">
+            <TabsList className="grid grid-cols-4 w-full mb-8">
               <TabsTrigger value="content" className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4" />
-                Générateur de Contenus
+                <span className="hidden sm:inline">Contenus</span>
               </TabsTrigger>
               <TabsTrigger value="budget" className="flex items-center gap-2">
                 <Calculator className="w-4 h-4" />
-                Calculateur de Budget
+                <span className="hidden sm:inline">Budget</span>
+              </TabsTrigger>
+              <TabsTrigger value="calendar" className="flex items-center gap-2">
+                <Calendar className="w-4 h-4" />
+                <span className="hidden sm:inline">Calendrier</span>
+              </TabsTrigger>
+              <TabsTrigger value="personas" className="flex items-center gap-2">
+                <Users className="w-4 h-4" />
+                <span className="hidden sm:inline">Personas</span>
               </TabsTrigger>
             </TabsList>
             
@@ -113,6 +123,20 @@ export const MarketingTools = () => {
             
             <TabsContent value="budget">
               <MarketingBudgetCalculator
+                productName={selectedProductData.name}
+                targetCountry={selectedCountry}
+              />
+            </TabsContent>
+            
+            <TabsContent value="calendar">
+              <MarketingCalendar
+                productName={selectedProductData.name}
+                targetCountry={selectedCountry}
+              />
+            </TabsContent>
+            
+            <TabsContent value="personas">
+              <CustomerPersonas
                 productName={selectedProductData.name}
                 targetCountry={selectedCountry}
               />
