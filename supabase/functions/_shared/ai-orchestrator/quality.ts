@@ -53,28 +53,38 @@ export function computeQuality(spec: any, meta?: {citations?: Record<string, num
   // Enhanced bonus system for real wine data quality
   let bonusScore = 0;
   
-  // Core identification bonus
-  if (spec?.productName && spec?.producer) bonusScore += 0.15; // Proper wine identification
+  // Core identification bonus - increased for complete identification
+  if (spec?.productName && spec?.producer) bonusScore += 0.18; // Was 0.15
   
-  // French wine specifics
-  if (spec?.appellation && spec?.appellation.length > 0) bonusScore += 0.1; // French AOC/AOP crucial
-  if (spec?.region && spec?.region.length > 0) bonusScore += 0.05; // Regional info
+  // French wine specifics - critical for French wines
+  if (spec?.appellation && spec?.appellation.length > 0) bonusScore += 0.15; // Was 0.1 - French AOC crucial
+  if (spec?.region && spec?.region.length > 0) bonusScore += 0.08; // Was 0.05 - Regional info
   
   // Technical wine data
-  if (spec?.grapes && Array.isArray(spec.grapes) && spec.grapes.length > 0) bonusScore += 0.1; // Grape composition
-  if (spec?.vintage && spec?.vintage >= 1990) bonusScore += 0.05; // Valid vintage
+  if (spec?.grapes && Array.isArray(spec.grapes) && spec.grapes.length > 0) bonusScore += 0.12; // Was 0.1
+  if (spec?.vintage && spec?.vintage >= 1990) bonusScore += 0.07; // Was 0.05
   
-  // Tasting & commercial info
-  if (spec?.tastingNotes && spec.tastingNotes.length > 30) bonusScore += 0.08; // Meaningful tasting notes
-  if (spec?.foodPairing && Array.isArray(spec.foodPairing) && spec.foodPairing.length > 0) bonusScore += 0.05; // Food pairing
+  // Tasting & commercial info - increased for comprehensive extraction
+  if (spec?.tastingNotes && spec.tastingNotes.length > 30) bonusScore += 0.10; // Was 0.08
+  if (spec?.foodPairing && Array.isArray(spec.foodPairing) && spec.foodPairing.length > 0) bonusScore += 0.08; // Was 0.05
+  
+  // Service & storage - NEW bonuses for advanced data
+  if (spec?.servingTemp_C && spec.servingTemp_C > 0) bonusScore += 0.05; // NEW - Serving temperature
+  if (spec?.ageingPotential_years && spec.ageingPotential_years > 0) bonusScore += 0.05; // NEW - Aging potential
   
   // Quality indicators
-  if (spec?.organicCert || spec?.awards) bonusScore += 0.02; // Certifications/awards
+  if (spec?.organicCert || spec?.awards) bonusScore += 0.03; // Was 0.02
   
-  // Weighted combination - more generous scoring for real extractions
-  const wCoverage = 0.60;      // Data completeness
+  // NEW - Complete extraction bonus (when most fields are filled)
+  const totalFields = essentialKeys.length + importantKeys.length + optionalKeys.length;
+  const filledFields = essentialFilled + importantFilled + optionalFilled;
+  const completionRate = filledFields / totalFields;
+  if (completionRate > 0.6) bonusScore += 0.05; // Bonus for comprehensive extraction
+  
+  // Weighted combination - adjusted for higher baseline scores
+  const wCoverage = 0.55;      // Was 0.60 - Data completeness
   const wConsistency = 0.20;   // Data validity  
-  const wBonus = 0.20;         // Wine-specific quality bonus (increased)
+  const wBonus = 0.25;         // Was 0.20 - Wine-specific quality bonus (increased further)
 
   const finalScore = Math.min(1.0, wCoverage * coverage + wConsistency * consistencyScore + wBonus * bonusScore);
   
