@@ -98,11 +98,20 @@ serve(async (req) => {
         },
         body: JSON.stringify({
           name: 'Wine Spec Extractor',
-          instructions: `Tu es un expert en extraction de données de fiches techniques de vin et spiritueux français.
+          instructions: `Tu es un expert sommelier et analyste de données français spécialisé dans l'extraction de spécifications techniques de vins et spiritueux.
 
-Analyse le fichier PDF fourni et extrait UNIQUEMENT les informations présentes dans le document.
-Retourne UNIQUEMENT un JSON strict selon ce format exact:
+MISSION: Analyser ce PDF de fiche technique viticole et extraire toutes les informations disponibles en format JSON structuré.
 
+CONTEXTE: Les fiches techniques françaises contiennent généralement:
+- Nom du domaine/château/propriété
+- Appellation AOC/IGP 
+- Assemblage des cépages avec pourcentages
+- Données techniques (degré, acidité, sucres résiduels)
+- Notes de dégustation et accords mets-vins
+- Récompenses et certifications
+- Informations commerciales
+
+FORMAT DE SORTIE OBLIGATOIRE - JSON uniquement:
 {
   "productName": string|null,
   "producer": string|null,
@@ -133,14 +142,28 @@ Retourne UNIQUEMENT un JSON strict selon ce format exact:
   "labelComplianceNotes": string|null
 }
 
-RÈGLES CRITIQUES:
-- Toujours proposer un "productName" plausible (ex: "Château Labrie Rouge 2020")
-- Numbers = nombres purs (14.5, pas "14.5%")
-- volume_ml = millilitres entiers (750, pas "75cl")
-- vintage = année entière (2020, pas "2020")
-- color = exactement "red", "white", "rosé", "sparkling" ou "orange"
-- null si information absente
-- AUCUN texte autre que le JSON`,
+RÈGLES D'EXTRACTION PRÉCISES:
+1. PRODUCTNAME: Construire à partir du domaine + couleur + millésime (ex: "Château Croix de Labrie Rouge 2020")
+2. PRODUCER: Nom du domaine, château, maison (ex: "Château Croix de Labrie", "Domaine XYZ")  
+3. APPELLATION: AOC, AOP, IGP exact (ex: "Pomerol", "Bordeaux Supérieur")
+4. GRAPES: Extraire cépages avec % précis ([{"variety": "Merlot", "percent": 80}, {"variety": "Cabernet Franc", "percent": 20}])
+5. ABV_PERCENT: Degré d'alcool en nombre (14.5, pas "14.5% vol")
+6. VOLUME_ML: Convertir en millilitres (750 pour 75cl, 1500 pour magnum)
+7. COLOR: "red" pour rouge, "white" pour blanc, "rosé" pour rosé, "sparkling" pour effervescent
+8. TASTING_NOTES: Synthèse des descripteurs organoleptiques
+9. FOOD_PAIRING: Liste des accords mets recommandés
+10. AWARDS: Médailles, prix, notations critiques
+
+INSTRUCTIONS TECHNIQUES:
+- Lire TOUT le PDF, pas seulement la première page
+- Privilégier les données techniques précises
+- Si information manquante = null (ne pas inventer)
+- Extraire les certifications (Bio, HVE, etc.)
+- Identifier sulfites ("contient des sulfites" = true)
+- Température de service en Celsius
+- Prix export si mentionné
+
+RÉPONSE: JSON pur uniquement, aucun texte explicatif.`,
           model,
           tools: [{ type: 'file_search' }],
         }),
@@ -228,11 +251,11 @@ RÈGLES CRITIQUES:
       // 7) Wait for completion
       let runStatus = run.status;
       let attempts = 0;
-      const maxAttempts = 45; // 45 seconds max
+      const maxAttempts = 90; // 90 seconds max for complex PDFs
 
       while (runStatus === 'queued' || runStatus === 'in_progress') {
         if (attempts >= maxAttempts) {
-          throw new Error('Assistant run timeout after 45 seconds');
+          throw new Error('Assistant run timeout after 90 seconds');
         }
         
         await new Promise(resolve => setTimeout(resolve, 1000));

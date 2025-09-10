@@ -1,20 +1,34 @@
 export function computeQuality(spec: any, meta?: {citations?: Record<string, number[]>, providers?: any[]}) {
-  // Define key fields for wine/spirits product data
-  const keys = [
-    "productName", "producer", "brand", "appellation", "region", "country",
-    "color", "style", "vintage", "grapes", "abv_percent", "residualSugar_gL",
-    "closure", "volume_ml", "sulfites", "organicCert", "awards", "tastingNotes",
-    "foodPairing", "servingTemp_C", "ageingPotential_years", "exportNetPrice_EUR",
-    "availableVolume_cases", "packaging", "allergenInfo", "labelComplianceNotes"
+  // Define ESSENTIAL fields that should typically be present in wine specs
+  const essentialKeys = [
+    "productName", "producer", "color", "vintage", "abv_percent", "volume_ml"
+  ];
+  
+  // Define IMPORTANT fields that are commonly present but not always
+  const importantKeys = [
+    "appellation", "region", "grapes", "tastingNotes"
+  ];
+  
+  // Define OPTIONAL fields that may or may not be present (shouldn't penalize much if missing)
+  const optionalKeys = [
+    "brand", "country", "style", "residualSugar_gL", "closure", "sulfites", 
+    "organicCert", "awards", "foodPairing", "servingTemp_C", "ageingPotential_years",
+    "exportNetPrice_EUR", "availableVolume_cases", "packaging", "allergenInfo", "labelComplianceNotes"
   ];
 
-  // Calculate coverage (how many fields are filled)
-  const filled = keys.filter(k => {
-    const v = spec?.[k];
-    return v !== null && v !== "" && !(Array.isArray(v) && v.length === 0);
-  }).length;
+  const getValue = (v: any) => v !== null && v !== "" && !(Array.isArray(v) && v.length === 0);
+
+  // Calculate weighted coverage
+  const essentialFilled = essentialKeys.filter(k => getValue(spec?.[k])).length;
+  const importantFilled = importantKeys.filter(k => getValue(spec?.[k])).length;
+  const optionalFilled = optionalKeys.filter(k => getValue(spec?.[k])).length;
   
-  const coverage = filled / keys.length;
+  // Weighted coverage: Essential fields count more
+  const essentialScore = essentialFilled / essentialKeys.length;
+  const importantScore = importantFilled / importantKeys.length; 
+  const optionalScore = optionalFilled / optionalKeys.length;
+  
+  const coverage = (essentialScore * 0.6) + (importantScore * 0.3) + (optionalScore * 0.1);
 
   // Calculate consistency (basic validation checks)
   const consistency = [
@@ -35,12 +49,18 @@ export function computeQuality(spec: any, meta?: {citations?: Record<string, num
   const activeProviders = meta?.providers?.filter(p => p.ok).length ?? 1;
   const quotaConstrained = activeProviders < 2; // Less than 2 providers suggests quota issues
   
-  // Weighted combination - reduce citation weight when quota constrained
-  const wCoverage = 0.60;      // Increased: Most important is data completeness
-  const wConsistency = 0.30;   // Increased: Data validity matters more
-  const wCitations = quotaConstrained ? 0.10 : 0.20; // Reduced when APIs limited
+  // Bonus for having key wine data
+  let bonusScore = 0;
+  if (spec?.productName && spec?.producer) bonusScore += 0.1; // Good identification
+  if (spec?.grapes && Array.isArray(spec.grapes) && spec.grapes.length > 0) bonusScore += 0.1; // Grape data
+  if (spec?.tastingNotes && spec.tastingNotes.length > 50) bonusScore += 0.05; // Detailed tasting notes
+  
+  // Weighted combination - emphasize practical data extraction
+  const wCoverage = 0.70;      // Most important: actual data extracted
+  const wConsistency = 0.25;   // Data validity
+  const wBonus = 0.05;         // Extra credit for wine-specific completeness
 
-  const finalScore = wCoverage * coverage + wConsistency * consistencyScore + wCitations * hasCitations;
+  const finalScore = Math.min(1.0, wCoverage * coverage + wConsistency * consistencyScore + wBonus * bonusScore);
   
   return Math.round(100 * finalScore);
 }
