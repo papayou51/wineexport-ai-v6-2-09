@@ -109,7 +109,8 @@ export const useExtractionMonitoring = (organizationId: string) => {
     return {
       anthropic: workingProviders.includes('anthropic') ? 'working' : 'unknown',
       google: workingProviders.includes('google') ? 'working' : 'unknown',
-      openai: workingProviders.includes('openai') ? 'working' : 'unknown',
+      // Recognize both openai and openai-assistants as OpenAI working
+      openai: (workingProviders.includes('openai') || workingProviders.includes('openai-assistants')) ? 'working' : 'unknown',
       fallback: workingProviders.includes('fallback') ? 'working' : 'unknown'
     };
   };
@@ -161,7 +162,8 @@ export const useExtractionMonitoring = (organizationId: string) => {
       updatedExtractions.forEach(extraction => {
         if (extraction.success) {
           // Primary strategy: Use the direct provider field (most reliable)
-          if (extraction.provider === "openai") {
+          // Recognize openai-assistants as OpenAI variant
+          if (extraction.provider === "openai" || extraction.provider === "openai-assistants") {
             openaiWins++;
           } else if (extraction.provider === "anthropic") {
             anthropicWins++;  

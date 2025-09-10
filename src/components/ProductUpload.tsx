@@ -123,10 +123,6 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
         
         // Add to local monitoring
         if (addExtractionResult) {
-          // Log the full structure to understand the response format
-          console.log('📋 [DEBUG] Full extract result structure:', extractResult);
-          console.log('📋 [DEBUG] Providers data:', extractResult.providers);
-          console.log('📋 [DEBUG] Metadata runs:', extractResult.metadata?.runs);
           
           // Extract provider with multiple fallback strategies
           let successfulProvider = 'unknown';
@@ -147,25 +143,22 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
             }
           }
           
-          // Strategy 3: Check direct provider field
+          // Strategy 3: Check extractionSource field (V2 primary field)
+          if (successfulProvider === 'unknown' && extractResult.extractionSource) {
+            successfulProvider = extractResult.extractionSource;
+          }
+          
+          // Strategy 4: Check direct provider field (legacy)
           if (successfulProvider === 'unknown' && extractResult.provider) {
             successfulProvider = extractResult.provider;
           }
           
-          // Strategy 4: Check primaryProvider field
+          // Strategy 5: Check primaryProvider field (legacy)
           if (successfulProvider === 'unknown' && extractResult.primaryProvider) {
             successfulProvider = extractResult.primaryProvider;
           }
           
-          console.log('🔄 [DEBUG] Adding extraction result to monitoring:', {
-            provider: successfulProvider,
-            success: true,
-            qualityScore: backendQualityScore,
-            extractionTime: performance.now() - startTime,
-            fileName: file.name,
-            organizationId,
-            extractedProvider: successfulProvider
-          });
+          // Add extraction result to monitoring with V2 provider info
           addExtractionResult({
             provider: successfulProvider,
             success: true,
@@ -174,8 +167,6 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
             fileName: file.name,
             providers: extractResult.providers
           });
-        } else {
-          console.log('⚠️ [DEBUG] addExtractionResult function not provided');
         }
         
         onDataExtracted(extractResult.extractedData, extractResult.extractedText, backendQualityScore);
