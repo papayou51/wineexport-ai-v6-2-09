@@ -19,6 +19,8 @@ export const WineProductSpecSchema = z.object({
   abv_percent: z.number().min(0).max(100).nullable(),
   residualSugar_gL: z.number().min(0).max(400).nullable(),
   acidity_gL: z.number().min(0).max(20).nullable(),
+  ph: z.number().min(0).max(14).nullable(),
+  so2_total: z.number().min(0).max(400).nullable(),
   closure: z.string().nullable(),
   volume_ml: z.number().nullable(),
   sulfites: z.boolean().nullable(),
@@ -33,6 +35,23 @@ export const WineProductSpecSchema = z.object({
   packaging: z.string().nullable(),
   allergenInfo: z.array(z.string()).nullable(),
   labelComplianceNotes: z.string().nullable(),
+  // Enhanced technical fields
+  terroir: z.string().nullable(),
+  vineAge_years: z.number().min(0).max(200).nullable(),
+  yieldHlHa: z.number().min(0).max(200).nullable(),
+  vinificationDetails: z.string().nullable(),
+  agingDetails: z.string().nullable(),
+  bottlingDate: z.string().nullable(),
+  eanCode: z.string().nullable(),
+  packagingDetails: z.string().nullable(),
+  availability: z.string().nullable(),
+  // Producer contact information
+  producerContact: z.object({
+    name: z.string().nullable(),
+    email: z.string().nullable(),
+    phone: z.string().nullable(),
+    website: z.string().nullable(),
+  }).nullable(),
   citations: z.record(z.string(), z.array(z.number())).default({}),
   confidence: z.record(z.string(), z.number()).default({}),
 });

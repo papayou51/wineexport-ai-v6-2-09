@@ -21,6 +21,20 @@ const productSchema = z.object({
   description: z.string().optional(),
   tasting_notes: z.string().optional(),
   appellation: z.string().optional(),
+  // Enhanced fields
+  terroir: z.string().optional(),
+  vine_age: z.number().min(0).max(200).optional().nullable(),
+  yield_hl_ha: z.number().min(0).max(200).optional().nullable(),
+  vinification: z.string().optional(),
+  aging_details: z.string().optional(),
+  bottling_info: z.string().optional(),
+  ean_code: z.string().optional(),
+  packaging_info: z.string().optional(),
+  availability: z.string().optional(),
+  producer_name: z.string().optional(),
+  producer_email: z.string().optional(),
+  producer_phone: z.string().optional(),
+  producer_website: z.string().optional(),
 });
 
 type ProductFormData = z.infer<typeof productSchema>;
@@ -88,6 +102,20 @@ export const ProductForm = ({ initialData, extractedText, organizationId, onSucc
       description: initialData?.description || "",
       tasting_notes: initialData?.tasting_notes || "",
       appellation: initialData?.appellation || "",
+      // Enhanced fields
+      terroir: initialData?.terroir || "",
+      vine_age: initialData?.vine_age || null,
+      yield_hl_ha: initialData?.yield_hl_ha || null,
+      vinification: initialData?.vinification || "",
+      aging_details: initialData?.aging_details || "",
+      bottling_info: initialData?.bottling_info || "",
+      ean_code: initialData?.ean_code || "",
+      packaging_info: initialData?.packaging_info || "",
+      availability: initialData?.availability || "",
+      producer_name: initialData?.producer_contact?.name || "",
+      producer_email: initialData?.producer_contact?.email || "",
+      producer_phone: initialData?.producer_contact?.phone || "",
+      producer_website: initialData?.producer_contact?.website || "",
     },
   });
 
@@ -104,6 +132,22 @@ export const ProductForm = ({ initialData, extractedText, organizationId, onSucc
       awards,
       certifications,
       technical_specs: initialData?.technical_specs || {},
+      // Enhanced fields
+      terroir: data.terroir,
+      vine_age: data.vine_age,
+      yield_hl_ha: data.yield_hl_ha,
+      vinification: data.vinification,
+      aging_details: data.aging_details,
+      bottling_info: data.bottling_info,
+      ean_code: data.ean_code,
+      packaging_info: data.packaging_info,
+      availability: data.availability,
+      producer_contact: {
+        name: data.producer_name,
+        email: data.producer_email,
+        phone: data.producer_phone,
+        website: data.producer_website,
+      },
     };
 
     const createdProduct = await createMutation.mutateAsync({ 
@@ -387,6 +431,274 @@ export const ProductForm = ({ initialData, extractedText, organizationId, onSucc
                   ))}
                 </div>
               </div>
+
+              {/* Enhanced Terroir & Production Section */}
+              <Card className="border-muted/40">
+                <CardHeader>
+                  <CardTitle className="text-base font-medium flex items-center gap-2">
+                    🌿 Terroir & Production
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="terroir"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Terroir</FormLabel>
+                          <FormControl>
+                            <Textarea 
+                              placeholder="Ex: Sols argilo-calcaires, exposition sud-ouest, altitude 150m"
+                              rows={2}
+                              {...field} 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="vine_age"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Âge moyen des vignes (années)</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="number" 
+                              placeholder="Ex: 25" 
+                              {...field} 
+                              value={field.value || ""}
+                              onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="yield_hl_ha"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Rendement (hl/ha)</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="number" 
+                              step="0.1"
+                              placeholder="Ex: 45" 
+                              {...field} 
+                              value={field.value || ""}
+                              onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="vinification"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Vinification</FormLabel>
+                          <FormControl>
+                            <Textarea 
+                              placeholder="Ex: Fermentation en cuves inox, macération 21 jours"
+                              rows={2}
+                              {...field} 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name="aging_details"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Élevage détaillé</FormLabel>
+                        <FormControl>
+                          <Textarea 
+                            placeholder="Ex: Élevage 12 mois dont 6 mois en barriques neuves de chêne français"
+                            rows={2}
+                            {...field} 
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="bottling_info"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Mise en bouteille</FormLabel>
+                        <FormControl>
+                          <Input 
+                            placeholder="Ex: Mise en bouteille mars 2021, sans collage ni filtration"
+                            {...field} 
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </CardContent>
+              </Card>
+
+              {/* Commercial & Contact Information Section */}
+              <Card className="border-muted/40">
+                <CardHeader>
+                  <CardTitle className="text-base font-medium flex items-center gap-2">
+                    📦 Informations commerciales
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="ean_code"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Code EAN</FormLabel>
+                          <FormControl>
+                            <Input 
+                              placeholder="Ex: 3760123456789"
+                              {...field} 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="packaging_info"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Conditionnement</FormLabel>
+                          <FormControl>
+                            <Input 
+                              placeholder="Ex: Cartons de 6 bouteilles, 12x75cl"
+                              {...field} 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name="availability"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Disponibilité</FormLabel>
+                        <FormControl>
+                          <Input 
+                            placeholder="Ex: Disponible dès maintenant, livraison septembre 2024"
+                            {...field} 
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </CardContent>
+              </Card>
+
+              {/* Producer Contact Section */}
+              <Card className="border-muted/40">
+                <CardHeader>
+                  <CardTitle className="text-base font-medium flex items-center gap-2">
+                    📞 Contact producteur
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="producer_name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Nom du contact</FormLabel>
+                          <FormControl>
+                            <Input 
+                              placeholder="Ex: Jean Dupont"
+                              {...field} 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="producer_email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="email"
+                              placeholder="Ex: contact@chateau.com"
+                              {...field} 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="producer_phone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Téléphone</FormLabel>
+                          <FormControl>
+                            <Input 
+                              placeholder="Ex: +33 1 23 45 67 89"
+                              {...field} 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="producer_website"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Site web</FormLabel>
+                          <FormControl>
+                            <Input 
+                              placeholder="Ex: https://www.chateau.com"
+                              {...field} 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
 
               <div className="flex justify-end space-x-2">
                 <Button 

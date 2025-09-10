@@ -178,10 +178,49 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
             tasting_notes: v2Data.tastingNotes || v2Data.tasting_notes,
             alcohol_percentage: v2Data.abv_percent || v2Data.alcohol_percentage,
             description: v2Data.description || v2Data.tastingNotes, // Fallback to tasting notes if no description
+            // Enhanced field mappings
+            terroir: v2Data.terroir,
+            vine_age: v2Data.vineAge_years || v2Data.vine_age,
+            yield_hl_ha: v2Data.yieldHlHa || v2Data.yield_hl_ha,
+            vinification: v2Data.vinificationDetails || v2Data.vinification,
+            aging_details: v2Data.agingDetails || v2Data.aging_details,
+            bottling_info: v2Data.bottlingDate || v2Data.bottling_info,
+            ean_code: v2Data.eanCode || v2Data.ean_code,
+            packaging_info: v2Data.packagingDetails || v2Data.packaging_info || v2Data.packaging,
+            availability: v2Data.availability,
+            producer_contact: v2Data.producerContact || v2Data.producer_contact,
+            // Technical specs mapping
+            technical_specs: {
+              ...v2Data.technical_specs,
+              ph: v2Data.ph || v2Data.technical_specs?.ph,
+              total_acidity: v2Data.acidity_gL || v2Data.technical_specs?.total_acidity,
+              residual_sugar: v2Data.residualSugar_gL || v2Data.technical_specs?.residual_sugar,
+              so2_total: v2Data.so2_total || v2Data.technical_specs?.so2_total,
+              grape_varieties: v2Data.grapes ? 
+                Array.isArray(v2Data.grapes) ? 
+                  v2Data.grapes.map((g: any) => `${g.variety}${g.percent ? ` ${g.percent}%` : ''}`).join(', ') :
+                  v2Data.grapes : 
+                v2Data.technical_specs?.grape_varieties,
+              serving_temperature: v2Data.servingTemp_C ? `${v2Data.servingTemp_C}°C` : v2Data.technical_specs?.serving_temperature,
+              aging_potential: v2Data.ageingPotential_years ? `${v2Data.ageingPotential_years} ans` : v2Data.technical_specs?.aging_potential
+            },
             // Remove V2-specific fields that don't match ProductData
             productName: undefined,
             tastingNotes: undefined,
-            abv_percent: undefined
+            abv_percent: undefined,
+            vineAge_years: undefined,
+            yieldHlHa: undefined,
+            vinificationDetails: undefined,
+            agingDetails: undefined,
+            bottlingDate: undefined,
+            eanCode: undefined,
+            packagingDetails: undefined,
+            producerContact: undefined,
+            acidity_gL: undefined,
+            residualSugar_gL: undefined,
+            servingTemp_C: undefined,
+            ageingPotential_years: undefined,
+            grapes: undefined
           };
         };
         

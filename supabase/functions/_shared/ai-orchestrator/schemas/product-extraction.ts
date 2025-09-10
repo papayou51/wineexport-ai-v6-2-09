@@ -15,11 +15,28 @@ export const ProductExtractionSchema = z.object({
     ph: z.number().nullable().describe("pH level"),
     total_acidity: z.string().nullable().describe("Total acidity"),
     residual_sugar: z.string().nullable().describe("Residual sugar content"),
+    so2_total: z.number().nullable().describe("Total SO₂ content in mg/L"),
     grape_varieties: z.string().describe("Grape varieties used"),
     aging_process: z.string().describe("Aging process description"),
     serving_temperature: z.string().describe("Recommended serving temperature"),
     any_other_specs: z.string().describe("Any other technical specifications")
-  }).describe("Technical specifications")
+  }).describe("Technical specifications"),
+  // Enhanced fields for comprehensive extraction
+  terroir: z.string().nullable().describe("Terroir information (soil, exposition, altitude)"),
+  vine_age: z.number().nullable().describe("Average age of vines in years"),
+  yield_hl_ha: z.number().nullable().describe("Yield in hectoliters per hectare"),
+  vinification: z.string().nullable().describe("Vinification process details"),
+  aging_details: z.string().nullable().describe("Detailed aging process"),
+  bottling_info: z.string().nullable().describe("Bottling date and process"),
+  ean_code: z.string().nullable().describe("EAN/barcode"),
+  packaging_info: z.string().nullable().describe("Packaging and case details"),
+  availability: z.string().nullable().describe("Product availability"),
+  producer_contact: z.object({
+    name: z.string().nullable().describe("Producer/contact name"),
+    email: z.string().nullable().describe("Email contact"),
+    phone: z.string().nullable().describe("Phone contact"),
+    website: z.string().nullable().describe("Website URL")
+  }).nullable().describe("Producer contact information")
 });
 
 export type ProductExtractionData = z.infer<typeof ProductExtractionSchema>;
@@ -73,13 +90,28 @@ export const PRODUCT_EXTRACTION_PROMPT = `You are an ELITE French wine and spiri
 • Languedoc: Corbières, Minervois, Pic Saint-Loup, etc.
 • Also extract: AOC, AOP, IGP indicators
 
-**7. TECHNICAL SPECIFICATIONS (Wine Chemistry)**
+**7. TECHNICAL SPECIFICATIONS (Complete Wine Chemistry)**
 • pH: Extract values like "pH 3,45" → 3.45
 • Acidity: "Acidité totale: 4,2 g/L" or "TA: 6,1 g/L H2SO4"
 • Residual sugar: "Sucres résiduels: 2,5 g/L", "RS: < 2 g/L"
+• SO₂ Total: "SO₂ total: 85 mg/L", "Anhydride sulfureux: 95 mg/L"
 • Grape varieties: Extract percentages "Cabernet Sauvignon 60%, Merlot 30%, Petit Verdot 10%"
 • Aging: "Élevage 18 mois en barriques", "12 mois en cuve inox"
 • Temperature: "Servir entre 16-18°C", "Température de service: 8-10°C"
+
+**8. ENHANCED TERROIR & PRODUCTION DETAILS**
+• Terroir: "Sols argilo-calcaires", "Exposition sud-ouest", "Altitude 150m"
+• Vine age: "Vignes de 40 ans", "Âge moyen des vignes: 25 ans"
+• Yield: "Rendement 45 hl/ha", "Rendement limité à 40 hl/ha"
+• Vinification: "Fermentation en cuves inox", "Macération 21 jours"
+• Aging details: "Élevage 12 mois dont 6 mois en barriques neuves"
+• Bottling: "Mise en bouteille mars 2021", "Sans collage ni filtration"
+
+**9. COMMERCIAL & CONTACT INFORMATION**
+• EAN codes: "3760123456789", "Code EAN13: 1234567890123"
+• Packaging: "Cartons de 6 bouteilles", "Conditionnement 12x75cl"
+• Availability: "Disponible dès maintenant", "Livraison septembre 2024"
+• Producer contact: Extract name, email, phone, website from contact sections
 
 **8. AWARDS & CERTIFICATIONS (French Recognition Systems)**
 • Medals: "Médaille d'Or", "Médaille d'Argent", "Médaille de Bronze"
@@ -126,12 +158,22 @@ pH: 3,6 - Acidité totale: 5,2 g/L
 
 💡 EXTRACTION STRATEGY:
 1. Scan for château/domaine name (usually in large text/headers)
-2. Look for year mentions anywhere in document
+2. Look for year mentions anywhere in document (titles, descriptions, filenames)
 3. Find alcohol percentage (often near volume info)
 4. Identify appellation (usually after château name)
 5. Extract technical data from analysis sections
 6. Gather awards from certification areas
 7. Compile tasting notes from descriptive sections
+8. **NEW ENHANCED EXTRACTION:**
+   - Extract terroir details from soil/exposition descriptions
+   - Identify vine age from production information
+   - Find yield data in technical specifications
+   - Capture detailed vinification processes
+   - Extract aging/élevage information with specifics
+   - Look for EAN codes in commercial sections
+   - Find packaging/conditionnement details
+   - Extract producer contact information from headers/footers
+   - Identify availability and distribution information
 
 ⚠️ CRITICAL SUCCESS FACTORS:
 • NEVER return empty product names - construct from available info
@@ -140,7 +182,26 @@ pH: 3,6 - Acidité totale: 5,2 g/L
 • Recognize abbreviated appellations (St-Julien = Saint-Julien)
 • Capture partial technical data rather than skipping sections
 • Include grape variety percentages when available
+• **NEW ENHANCED REQUIREMENTS:**
+  • Extract terroir even if partial (soil type, exposition, altitude)
+  • Look for vine age in production details or footer information
+  • Find yield information in technical sections (hl/ha)
+  • Capture complete vinification and aging processes
+  • Extract all contact details from any part of document
+  • Identify commercial information (EAN, packaging, availability)
 
 🎯 EXPECTED EXTRACTION QUALITY: 90%+ completeness comparable to expert sommelier analysis
+
+**FINAL EXTRACTION CHECKLIST:**
+✅ Product identification (name, category, vintage)
+✅ Technical specifications (alcohol, volume, pH, acidity, etc.)
+✅ Appellations and grape varieties with percentages
+✅ Tasting notes and descriptions
+✅ Awards and certifications
+✅ **Enhanced terroir details** (soil, exposition, altitude)
+✅ **Production information** (vine age, yield, vinification)
+✅ **Aging/élevage specifics** (duration, containers, process)
+✅ **Commercial data** (EAN, packaging, availability)
+✅ **Producer contact** (name, email, phone, website)
 
 Return ONLY valid JSON with extracted data. Focus on COMPLETENESS over perfection.`;

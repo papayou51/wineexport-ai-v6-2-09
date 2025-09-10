@@ -14,6 +14,22 @@ export interface ProductData {
   awards?: string[];
   certifications?: string[];
   technical_specs?: Record<string, any>;
+  // Enhanced fields
+  terroir?: string;
+  vine_age?: number;
+  yield_hl_ha?: number;
+  vinification?: string;
+  aging_details?: string;
+  bottling_info?: string;
+  ean_code?: string;
+  packaging_info?: string;
+  availability?: string;
+  producer_contact?: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    website?: string;
+  };
 }
 
 export const useProducts = (organizationId?: string) => {
