@@ -21,13 +21,20 @@ export const useAnalyses = (organizationId?: string) => {
     queryFn: async () => {
       if (!organizationId) return [];
       
+      // Fixed query: Use a subquery instead of problematic join
+      const { data: projects } = await supabase
+        .from('projects')
+        .select('id')
+        .eq('organization_id', organizationId);
+      
+      if (!projects || projects.length === 0) return [];
+      
+      const projectIds = projects.map(p => p.id);
+      
       const { data, error } = await supabase
         .from('analyses')
-        .select(`
-          *,
-          projects!inner(organization_id)
-        `)
-        .eq('projects.organization_id', organizationId)
+        .select('*')
+        .in('project_id', projectIds)
         .order('created_at', { ascending: false });
 
       if (error) throw error;

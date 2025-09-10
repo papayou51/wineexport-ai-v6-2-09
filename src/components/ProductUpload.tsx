@@ -32,115 +32,6 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
   const { trackProductWorkflow, trackError, trackPerformance } = useUserAnalytics();
   const { handleError } = useProductionOptimizations();
 
-  // Fonction pour calculer la qualité des données extraites
-  const calculateDataQuality = (data: ProductData, metadata?: any): { score: number; issues: string[] } => {
-    const issues: string[] = [];
-    let score = 0;
-    const maxScore = 100;
-
-    // Détecter si les données proviennent probablement du nom de fichier (extraction de base)
-    const isBasicExtraction = metadata?.extraction_notes?.includes('Template document') || 
-                             metadata?.extraction_notes?.includes('minimal extractable data') ||
-                             metadata?.extraction_notes?.includes('derived from filename');
-
-    // Si c'est une extraction de base, être très strict
-    if (isBasicExtraction) {
-      issues.push("Données extraites principalement du nom de fichier");
-      issues.push("Document semble être un template ou contenir peu de données");
-      
-      // Score très bas pour les extractions de base
-      if (data.name && data.name.trim().length > 2) score += 5;
-      if (data.category) score += 5;
-      
-      const qualityPercent = Math.max(5, Math.min(score, 25)); // Plafonné à 25% pour les extractions de base
-      return { score: qualityPercent, issues };
-    }
-
-    // Scoring strict pour les vraies extractions
-    // Champs essentiels (40 points)
-    if (data.name && data.name.trim().length > 5 && !data.name.toLowerCase().includes('château')) {
-      score += 15;
-    } else if (data.name && data.name.trim().length > 2) {
-      score += 5;
-      issues.push("Nom du produit générique ou incomplet");
-    } else {
-      issues.push("Nom du produit manquant");
-    }
-
-    if (data.category && data.category !== 'wine') {
-      score += 10;
-    } else if (data.category) {
-      score += 5;
-      issues.push("Catégorie générique");
-    } else {
-      issues.push("Catégorie manquante");
-    }
-
-    if (data.description && data.description.trim().length > 50) {
-      score += 15;
-    } else if (data.description && data.description.trim().length > 10) {
-      score += 5;
-      issues.push("Description trop courte");
-    } else {
-      issues.push("Description manquante");
-    }
-
-    // Champs techniques importants (35 points)
-    if (data.alcohol_percentage && data.alcohol_percentage > 0) {
-      score += 10;
-    } else {
-      issues.push("Degré d'alcool manquant");
-    }
-
-    if (data.volume_ml && data.volume_ml > 0) {
-      score += 10;
-    } else {
-      issues.push("Volume manquant");
-    }
-
-    if (data.vintage && data.vintage > 1900 && data.vintage <= new Date().getFullYear()) {
-      score += 10;
-    } else if (data.vintage) {
-      score += 3;
-      issues.push("Millésime suspect");
-    } else {
-      issues.push("Millésime manquant");
-    }
-
-    if (data.appellation && data.appellation.trim().length > 5 && data.appellation !== 'France') {
-      score += 5;
-    } else if (data.appellation) {
-      score += 2;
-      issues.push("Appellation générique");
-    } else {
-      issues.push("Appellation manquante");
-    }
-
-    // Champs bonus (25 points)
-    if (data.tasting_notes && data.tasting_notes.trim().length > 10) {
-      score += 10;
-    } else {
-      issues.push("Notes de dégustation manquantes");
-    }
-
-    if (data.technical_specs && Object.keys(data.technical_specs).length > 0) {
-      score += 5;
-    } else {
-      issues.push("Spécifications techniques manquantes");
-    }
-
-    if (data.awards && data.awards.length > 0) {
-      score += 5;
-    }
-
-    if (data.certifications && data.certifications.length > 0) {
-      score += 5;
-    }
-
-    const qualityPercent = Math.min(score, 100);
-    return { score: qualityPercent, issues };
-  };
-
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
     if (!file) return;
@@ -197,12 +88,12 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
       setCurrentStep('complete');
 
       if (extractResult.success && extractResult.extractedData) {
-        // Valider la qualité des données extraites
-        const quality = calculateDataQuality(extractResult.extractedData, extractResult.metadata);
+        // Use V2 backend quality score directly instead of recalculating
+        const backendQualityScore = extractResult.qualityScore || 0;
         
-        console.log('Data quality assessment:', {
-          score: quality.score,
-          issues: quality.issues,
+        console.log('✅ V2 Extraction completed:', {
+          backendScore: backendQualityScore,
+          provider: extractResult.extractionSource,
           extractedData: extractResult.extractedData
         });
 
@@ -212,8 +103,8 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
           text: extractResult.extractedText,
           metadata: { 
             ...extractResult.metadata, 
-            qualityScore: quality.score,
-            qualityIssues: quality.issues
+            qualityScore: backendQualityScore,
+            extractionVersion: 'V2'
           }
         });
 
@@ -222,8 +113,8 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
           success: true,
           extraction_time: performance.now() - startTime,
           extracted_fields: Object.keys(extractResult.extractedData).length,
-          quality_score: quality.score,
-          provider: extractResult.metadata?.provider || 'unknown',
+          quality_score: backendQualityScore,
+          provider: extractResult.extractionSource || 'v2-backend',
           file_name: file.name,
           file_size: file.size,
         });
@@ -269,7 +160,7 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
           console.log('🔄 [DEBUG] Adding extraction result to monitoring:', {
             provider: successfulProvider,
             success: true,
-            qualityScore: quality.score,
+            qualityScore: backendQualityScore,
             extractionTime: performance.now() - startTime,
             fileName: file.name,
             organizationId,
@@ -278,7 +169,7 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
           addExtractionResult({
             provider: successfulProvider,
             success: true,
-            qualityScore: quality.score,
+            qualityScore: backendQualityScore,
             extractionTime: performance.now() - startTime,
             fileName: file.name,
             providers: extractResult.providers
@@ -287,20 +178,20 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
           console.log('⚠️ [DEBUG] addExtractionResult function not provided');
         }
         
-        onDataExtracted(extractResult.extractedData, extractResult.extractedText, quality.score);
+        onDataExtracted(extractResult.extractedData, extractResult.extractedText, backendQualityScore);
         
         // Enhanced feedback with diagnostic information
-        const providerName = extractResult.metadata?.provider || 'IA';
+        const providerName = extractResult.extractionSource || extractResult.metadata?.provider || 'V2';
         const providerIcon = providerName === 'anthropic' ? '🤖' : 
                            providerName === 'google' ? '🧠' : 
                            providerName === 'openai' ? '🚀' : '🔧';
         
-        const extractionType = extractResult.metadata?.extractionType || 'unknown';
+        const extractionType = extractResult.metadata?.extractionType || 'v2_extraction';
         const fallbackContext = extractResult.metadata?.fallbackContext;
         
         // Enhanced V2 quality-based feedback with troubleshooting
-        if (quality.score < 15) {
-          let description = `🚀 Extraction V2 - Qualité: ${quality.score}%.`;
+        if (backendQualityScore < 15) {
+          let description = `🚀 Extraction V2 - Qualité: ${backendQualityScore}%.`;
           
           if (extractionType === 'text_fallback' && fallbackContext) {
             description += ` Problème détecté: ${fallbackContext.recommendedAction || 'PDF non accessible'}`;
@@ -313,8 +204,8 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
             description: description,
             variant: "destructive",
           });
-        } else if (quality.score < 40) {
-          let description = `🚀 Extraction V2 - Qualité: ${quality.score}%. Données limitées extraites.`;
+        } else if (backendQualityScore < 40) {
+          let description = `🚀 Extraction V2 - Qualité: ${backendQualityScore}%. Données limitées extraites.`;
           
           if (extractionType === 'text_fallback') {
             description += ` Extraction de secours utilisée.`;
@@ -324,20 +215,20 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
             title: "Extraction partielle",
             description: description,
           });
-        } else if (quality.score < 70) {
+        } else if (backendQualityScore < 70) {
           toast({
             title: "Données extraites",
-            description: `🚀 Extraction V2 - Qualité: ${quality.score}%. Bonnes données extraites. Veuillez vérifier les détails.`,
+            description: `🚀 Extraction V2 - Qualité: ${backendQualityScore}%. Bonnes données extraites. Veuillez vérifier les détails.`,
           });
-        } else if (quality.score >= 85) {
+        } else if (backendQualityScore >= 85) {
           toast({
             title: "🏆 Extraction V2 Premium", 
-            description: `Qualité exceptionnelle: ${quality.score}%. Toutes les données ont été extraites avec précision!`,
+            description: `Qualité exceptionnelle: ${backendQualityScore}%. Toutes les données ont été extraites avec précision!`,
           });
         } else {
           toast({
             title: "✨ Extraction V2 Excellente", 
-            description: `Qualité: ${quality.score}%. Extraction complète réussie avec le système optimisé!`,
+            description: `Qualité: ${backendQualityScore}%. Extraction complète réussie avec le système optimisé!`,
           });
         }
       } else {
