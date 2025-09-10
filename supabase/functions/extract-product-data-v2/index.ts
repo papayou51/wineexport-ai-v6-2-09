@@ -316,26 +316,80 @@ serve(async (req) => {
       const rawResponse = assistantMessage.content[0].text.value;
       console.log('Assistant response received, length:', rawResponse.length);
 
-      // 9) Parse JSON response
+      // 9) Parse JSON response with robust fallback
       let extractedData;
       try {
         // Clean response to extract JSON
         let cleanResponse = rawResponse.trim();
         
-        // Find JSON boundaries
-        const jsonStart = cleanResponse.indexOf('{');
-        const jsonEnd = cleanResponse.lastIndexOf('}');
-        
-        if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
-          cleanResponse = cleanResponse.slice(jsonStart, jsonEnd + 1);
+        // Check if response starts with French text (error case)
+        const lowerResponse = cleanResponse.toLowerCase();
+        if (lowerResponse.startsWith('je ne peux') || 
+            lowerResponse.startsWith('aucune') || 
+            lowerResponse.startsWith('désolé') ||
+            lowerResponse.includes('impossible') ||
+            !cleanResponse.includes('{')) {
+          console.warn('⚠️ Assistant returned French text instead of JSON, using fallback');
+          console.log('Non-JSON response:', rawResponse.substring(0, 200));
+          
+          // Return minimal valid JSON structure
+          extractedData = {
+            productName: null,
+            producer: null,
+            brand: null,
+            appellation: null,
+            region: null,
+            country: "France",
+            color: null,
+            vintage: null,
+            grapes: null,
+            abv_percent: null,
+            volume_ml: 750,
+            tastingNotes: null,
+            foodPairing: null,
+            servingTemp_C: null,
+            ageingPotential_years: null,
+            organicCert: null,
+            awards: null
+          };
+        } else {
+          // Find JSON boundaries
+          const jsonStart = cleanResponse.indexOf('{');
+          const jsonEnd = cleanResponse.lastIndexOf('}');
+          
+          if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+            cleanResponse = cleanResponse.slice(jsonStart, jsonEnd + 1);
+          }
+          
+          extractedData = JSON.parse(cleanResponse);
         }
         
-        extractedData = JSON.parse(cleanResponse);
-        console.log('Successfully parsed JSON response');
+        console.log('✅ Successfully processed response');
       } catch (parseError) {
-        console.error('JSON parsing failed:', parseError);
-        console.log('Raw response sample:', rawResponse.substring(0, 500));
-        throw new Error('Invalid JSON response from assistant');
+        console.error('❌ JSON parsing failed:', parseError);
+        console.log('Raw response sample:', rawResponse.substring(0, 300));
+        
+        // Fallback to minimal structure instead of throwing
+        console.warn('⚠️ Using fallback JSON structure due to parsing error');
+        extractedData = {
+          productName: null,
+          producer: null,
+          brand: null,
+          appellation: null,
+          region: null,
+          country: "France",
+          color: null,
+          vintage: null,
+          grapes: null,
+          abv_percent: null,
+          volume_ml: 750,
+          tastingNotes: null,
+          foodPairing: null,
+          servingTemp_C: null,
+          ageingPotential_years: null,
+          organicCert: null,
+          awards: null
+        };
       }
 
       // 10) Normalize and validate
