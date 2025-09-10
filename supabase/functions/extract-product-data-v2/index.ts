@@ -97,73 +97,80 @@ serve(async (req) => {
           'OpenAI-Beta': 'assistants=v2',
         },
         body: JSON.stringify({
-          name: 'Wine Spec Extractor',
-          instructions: `Tu es un expert sommelier et analyste de données français spécialisé dans l'extraction de spécifications techniques de vins et spiritueux.
+          name: 'Wine Spec Extractor V2',
+          instructions: `Tu es un expert sommelier et œnologue spécialisé dans l'analyse des fiches techniques de vins français. Ta mission est d'extraire TOUTES les informations visibles avec une précision absolue.
 
-MISSION: Analyser ce PDF de fiche technique viticole et extraire toutes les informations disponibles en format JSON structuré.
+🍷 IDENTIFICATION FONDAMENTALE (CRITIQUE):
+- Nom commercial exact du vin (titre principal)
+- Producteur/Domaine/Château (nom complet)
+- Appellation précise (AOC/AOP/IGP) - ESSENTIEL en France
+- Région viticole (Bordeaux, Bourgogne, Loire, etc.)
+- Millésime (année de récolte)
 
-CONTEXTE: Les fiches techniques françaises contiennent généralement:
-- Nom du domaine/château/propriété
-- Appellation AOC/IGP 
-- Assemblage des cépages avec pourcentages
-- Données techniques (degré, acidité, sucres résiduels)
-- Notes de dégustation et accords mets-vins
-- Récompenses et certifications
-- Informations commerciales
+🔬 COMPOSITION TECHNIQUE (PRIORITAIRE):
+- Cépages avec pourcentages exacts si mentionnés
+- Degré d'alcool (% vol.) - format décimal précis
+- Volume net (ml/cl/L) - convertir en ml
+- Couleur (rouge, blanc, rosé, champagne, pétillant)
+- Sucres résiduels (g/L) si indiqué
+- Acidité totale (g/L) si présente
 
-FORMAT DE SORTIE OBLIGATOIRE - JSON uniquement:
+📋 VINIFICATION & ÉLEVAGE:
+- Durée d'élevage et type de contenant (fût, cuve)
+- Type de bouchage (liège naturel, synthétique, vis)
+- Certifications (AB/Bio, Demeter/Biodynamie, HVE, Terra Vitis)
+- Méthodes particulières (vendanges manuelles, etc.)
+
+💰 INFORMATIONS COMMERCIALES:
+- Prix export net en EUR si mentionné
+- Volume disponible (caisses, bouteilles)
+- Conditionnement (cartons de 6/12, palette)
+- Informations allergènes obligatoires
+
+🍽️ DÉGUSTATION & SERVICE:
+- Notes de dégustation COMPLÈTES (nez, bouche, finale)
+- Accords mets-vins recommandés
+- Température de service optimale (°C)
+- Potentiel de garde (années)
+- Moment optimal de consommation
+
+🏆 DISTINCTIONS & LABELS:
+- Médailles, concours, prix obtenus
+- Notes de critiques/guides (Parker, Decanter, etc.)
+- Labels qualité (Label Rouge, etc.)
+
+⚡ RÈGLES D'EXTRACTION STRICTES:
+1. Extrais EXACTEMENT le texte original, sans reformulation
+2. Respecte l'orthographe française des noms propres
+3. Pour les listes : format array JSON ["item1", "item2"]
+4. Pour les cépages : [{"variety": "Nom", "percent": XX}]
+5. Valeurs numériques : format numérique pur (14.5, pas "14,5%")
+6. Si information absente : utilise null (pas "", pas "Non spécifié")
+7. Réponds UNIQUEMENT avec du JSON valide, aucun texte ajouté
+
+📝 EXEMPLE DE STRUCTURE ATTENDUE:
 {
-  "productName": string|null,
-  "producer": string|null,
-  "brand": string|null,
-  "appellation": string|null,
-  "region": string|null,
-  "country": string|null,
-  "color": "red"|"white"|"rosé"|"sparkling"|"orange"|null,
-  "style": string|null,
-  "vintage": number|null,
-  "grapes": [{"variety": string, "percent": number|null}]|null,
-  "abv_percent": number|null,
-  "residualSugar_gL": number|null,
-  "acidity_gL": number|null,
-  "closure": string|null,
-  "volume_ml": number|null,
-  "sulfites": boolean|null,
-  "organicCert": string|null,
-  "awards": [string]|null,
-  "tastingNotes": string|null,
-  "foodPairing": [string]|null,
-  "servingTemp_C": number|null,
-  "ageingPotential_years": number|null,
-  "exportNetPrice_EUR": number|null,
-  "availableVolume_cases": number|null,
-  "packaging": string|null,
-  "allergenInfo": [string]|null,
-  "labelComplianceNotes": string|null
-}
-
-RÈGLES D'EXTRACTION PRÉCISES:
-1. PRODUCTNAME: Construire à partir du domaine + couleur + millésime (ex: "Château Croix de Labrie Rouge 2020")
-2. PRODUCER: Nom du domaine, château, maison (ex: "Château Croix de Labrie", "Domaine XYZ")  
-3. APPELLATION: AOC, AOP, IGP exact (ex: "Pomerol", "Bordeaux Supérieur")
-4. GRAPES: Extraire cépages avec % précis ([{"variety": "Merlot", "percent": 80}, {"variety": "Cabernet Franc", "percent": 20}])
-5. ABV_PERCENT: Degré d'alcool en nombre (14.5, pas "14.5% vol")
-6. VOLUME_ML: Convertir en millilitres (750 pour 75cl, 1500 pour magnum)
-7. COLOR: "red" pour rouge, "white" pour blanc, "rosé" pour rosé, "sparkling" pour effervescent
-8. TASTING_NOTES: Synthèse des descripteurs organoleptiques
-9. FOOD_PAIRING: Liste des accords mets recommandés
-10. AWARDS: Médailles, prix, notations critiques
-
-INSTRUCTIONS TECHNIQUES:
-- Lire TOUT le PDF, pas seulement la première page
-- Privilégier les données techniques précises
-- Si information manquante = null (ne pas inventer)
-- Extraire les certifications (Bio, HVE, etc.)
-- Identifier sulfites ("contient des sulfites" = true)
-- Température de service en Celsius
-- Prix export si mentionné
-
-RÉPONSE: JSON pur uniquement, aucun texte explicatif.`,
+  "productName": "Château Croix de Labrie 2020",
+  "producer": "Château Croix de Labrie",
+  "brand": null,
+  "appellation": "Saint-Émilion Grand Cru",
+  "region": "Bordeaux", 
+  "country": "France",
+  "color": "red",
+  "vintage": 2020,
+  "grapes": [
+    {"variety": "Merlot", "percent": 85},
+    {"variety": "Cabernet Franc", "percent": 15}
+  ],
+  "abv_percent": 14.5,
+  "volume_ml": 750,
+  "tastingNotes": "Robe pourpre intense. Nez expressif de fruits noirs, épices douces et notes boisées élégantes...",
+  "foodPairing": ["Côte de bœuf grillée", "Gibier en sauce", "Fromages de caractère"],
+  "servingTemp_C": 18,
+  "ageingPotential_years": 10,
+  "organicCert": "Agriculture Biologique",
+  "awards": ["Médaille d'Or Concours Général Agricole 2022"]
+}`,
           model,
           tools: [{ type: 'file_search' }],
         }),
