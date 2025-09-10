@@ -1,7 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.0";
-import { WineProductSpecSchema } from "../_shared/spec-schema.ts";
+import { ProductExtractionSchema, PRODUCT_EXTRACTION_PROMPT } from "../_shared/ai-orchestrator/schemas/product-extraction.ts";
 import { normalizeSpec } from "../_shared/spec-normalize.ts";
 import { computeQuality } from "../_shared/ai-orchestrator/quality.ts";
 
@@ -97,88 +97,8 @@ serve(async (req) => {
           'OpenAI-Beta': 'assistants=v2',
         },
         body: JSON.stringify({
-          name: 'Wine Spec Extractor V2',
-          instructions: `Tu es un expert sommelier et œnologue spécialisé dans l'analyse des fiches techniques de vins français. Ta mission est d'extraire TOUTES les informations visibles avec une précision absolue.
-
-🍷 IDENTIFICATION FONDAMENTALE (CRITIQUE):
-- Nom commercial exact du vin (titre principal, souvent en gros caractères)
-- Producteur/Domaine/Château (nom complet, peut être en en-tête ou logo)
-- Appellation précise (AOC/AOP/IGP) - RECHERCHE PRIORITAIRE : "Appellation", "AOC", "AOP", "IGP" suivi du nom
-- Région viticole (Bordeaux, Bourgogne, Loire, Languedoc, Alsace, Champagne, etc.)
-- Millésime (année 4 chiffres, souvent près du nom)
-
-🔬 COMPOSITION TECHNIQUE (PRIORITAIRE):
-- Cépages avec pourcentages EXACTS si mentionnés (cherche "assemblage", "encépagement", "composition")
-- Degré d'alcool (% vol.) - formats possibles: "14,5%", "14.5% vol", "alc./vol."
-- Volume net (750ml standard, cherche "75cl", "750ml", "0.75L")
-- Couleur (rouge, blanc, rosé, champagne, pétillant, effervescent)
-- Sucres résiduels en g/L (souvent pour vins blancs/effervescents)
-- Acidité totale en g/L (information technique avancée)
-
-📋 VINIFICATION & ÉLEVAGE:
-- Durée d'élevage ET type de contenant (fût de chêne, barriques, cuves inox, béton)
-- Type de bouchage (liège naturel, synthétique, vis, capsule)
-- Certifications BIO (AB, Agriculture Biologique, Organic, Demeter, Biodyvin, HVE, Terra Vitis)
-- Méthodes spéciales (vendanges manuelles, tri sélectif, fermentation malolactique)
-
-💰 INFORMATIONS COMMERCIALES:
-- Prix export NET en EUR (hors taxes, format numérique précis)
-- Volume disponible en caisses ou bouteilles
-- Conditionnement standard (cartons 6/12 bouteilles, palette de X caisses)
-- Allergènes obligatoires (sulfites, œuf, lait) - cherche symboles et mentions légales
-
-🍽️ DÉGUSTATION & SERVICE (RECHERCHE APPROFONDIE):
-- Notes de dégustation COMPLÈTES (sections: aspect visuel, nez/arômes, bouche/palais, finale)
-- Accords mets-vins - CHERCHE SECTIONS: "Accords", "Suggestions", "Dégustation", "Service", en bas de page
-- Température de service (°C) - formats: "servir à 16-18°C", "température de service", "service"
-- Potentiel de garde/conservation (années) - cherche "garde", "conservation", "évolution", "apogée"
-- Moment optimal ("à boire maintenant", "2025-2030", "à partir de...")
-
-🏆 DISTINCTIONS & RECONNAISSANCE:
-- Médailles et concours (Concours Général Agricole, Mâcon, Paris, etc.)
-- Notes critiques (Robert Parker, Jancis Robinson, Decanter, Bettane+Desseauve)
-- Labels qualité français (Label Rouge, Vignobles & Découvertes)
-- Certifications environnementales
-
-🔍 TECHNIQUES DE RECHERCHE AVANCÉES:
-- Pour APPELLATIONS: cherche mots-clés "Appellation", "A.O.C.", "A.O.P.", "I.G.P." + nom géographique
-- Pour ACCORDS METS-VINS: examine TOUTE la page, souvent en encadré ou fin de document
-- Pour TEMPÉRATURE: formats variés "16-18°C", "servir frais", "température ambiante", "rafraîchi"
-- Pour GARDE: synonymes "potentiel", "évolution", "apogée", "conservation", années futures
-
-⚡ RÈGLES D'EXTRACTION ULTRA-PRÉCISES:
-1. Lis INTÉGRALEMENT le document, du header au footer
-2. Extrais texte EXACT, orthographe française respectée
-3. Arrays JSON: ["item1", "item2"] pour listes
-4. Cépages: [{"variety": "Nom exact", "percent": nombre}]
-5. Nombres purs: 14.5 (pas "14,5%" ni "quatorze virgule cinq")
-6. Information absente = null (JAMAIS "", "Non renseigné", "N/A")
-7. Output = JSON STRICT uniquement, zéro texte explicatif
-8. Privilégie QUALITÉ sur rapidité - vérifie 2 fois chaque donnée extraite
-
-📝 EXEMPLE DE STRUCTURE ATTENDUE:
-{
-  "productName": "Château Croix de Labrie 2020",
-  "producer": "Château Croix de Labrie",
-  "brand": null,
-  "appellation": "Saint-Émilion Grand Cru",
-  "region": "Bordeaux", 
-  "country": "France",
-  "color": "red",
-  "vintage": 2020,
-  "grapes": [
-    {"variety": "Merlot", "percent": 85},
-    {"variety": "Cabernet Franc", "percent": 15}
-  ],
-  "abv_percent": 14.5,
-  "volume_ml": 750,
-  "tastingNotes": "Robe pourpre intense. Nez expressif de fruits noirs, épices douces et notes boisées élégantes...",
-  "foodPairing": ["Côte de bœuf grillée", "Gibier en sauce", "Fromages de caractère"],
-  "servingTemp_C": 18,
-  "ageingPotential_years": 10,
-  "organicCert": "Agriculture Biologique",
-  "awards": ["Médaille d'Or Concours Général Agricole 2022"]
-}`,
+          name: 'Wine Spec Extractor V2 Enhanced',
+          instructions: PRODUCT_EXTRACTION_PROMPT,
           model,
           tools: [{ type: 'file_search' }],
         }),
@@ -398,7 +318,7 @@ serve(async (req) => {
 
       let validated = normalized;
       try {
-        validated = WineProductSpecSchema.parse(normalized);
+        validated = ProductExtractionSchema.parse(normalized);
         console.log('✅ Zod validation passed');
       } catch (e: any) {
         console.warn('⚠️ Zod validation failed, using normalized data:', e?.issues?.[0]?.message);
