@@ -85,7 +85,7 @@ export const useExtractProductData = () => {
     }) => {
       console.log('🔄 [DEBUG] Début extraction PDF:', { fileUrl, fileName, organizationId });
       
-      const { data, error } = await supabase.functions.invoke('extract-product-data', {
+      const { data, error } = await supabase.functions.invoke('extract-product-data-v2', {
         body: { fileUrl, fileName, organizationId }
       });
 
@@ -155,18 +155,6 @@ export const useExtractProductData = () => {
         }
       };
       
-      // Auto-retry with OCR if extraction was poor and fallback suggested
-      if (!mappedData.success && mappedData.error === "PDF_TEXT_UNAVAILABLE" && mappedData.fallbackSuggested === "ocr") {
-        console.log("🔄 Auto-retrying with OCR for better extraction...");
-        
-        const retryData = await supabase.functions.invoke('extract-product-data', {
-          body: { fileUrl, fileName, organizationId, forceOcr: "1" }
-        });
-        
-        if (retryData.data?.success) {
-          return { ...retryData.data, wasRetried: true };
-        }
-      }
       
       return mappedData;
     },

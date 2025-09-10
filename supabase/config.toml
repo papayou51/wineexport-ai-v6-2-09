@@ -1,1 +1,4 @@
 project_id = "gbuyfwlhxfwecitjtxii"
+
+[functions.extract-product-data-v2]
+verify_jwt = false
