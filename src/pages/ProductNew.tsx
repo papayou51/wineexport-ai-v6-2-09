@@ -67,8 +67,8 @@ const ProductNew = () => {
           </Button>
           <div className="flex-1">
             <h1 className="text-xl sm:text-2xl font-bold">Nouveau produit</h1>
-            <p className="text-sm sm:text-base text-muted-foreground">
-              Uploadez une fiche technique PDF pour extraire automatiquement les données
+            <p className="text-sm text-muted-foreground">
+              Uploadez une fiche technique PDF pour extraire automatiquement les données avec notre système V2 optimisé
             </p>
           </div>
         </div>

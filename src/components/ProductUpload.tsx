@@ -298,9 +298,9 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
         const extractionType = extractResult.metadata?.extractionType || 'unknown';
         const fallbackContext = extractResult.metadata?.fallbackContext;
         
-        // Enhanced quality-based feedback with troubleshooting
+        // Enhanced V2 quality-based feedback with troubleshooting
         if (quality.score < 15) {
-          let description = `${providerIcon} ${providerName} - Qualité: ${quality.score}%.`;
+          let description = `🚀 Extraction V2 - Qualité: ${quality.score}%.`;
           
           if (extractionType === 'text_fallback' && fallbackContext) {
             description += ` Problème détecté: ${fallbackContext.recommendedAction || 'PDF non accessible'}`;
@@ -314,7 +314,7 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
             variant: "destructive",
           });
         } else if (quality.score < 40) {
-          let description = `${providerIcon} ${providerName} - Qualité: ${quality.score}%. Données limitées extraites.`;
+          let description = `🚀 Extraction V2 - Qualité: ${quality.score}%. Données limitées extraites.`;
           
           if (extractionType === 'text_fallback') {
             description += ` Extraction de secours utilisée.`;
@@ -327,12 +327,17 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
         } else if (quality.score < 70) {
           toast({
             title: "Données extraites",
-            description: `${providerIcon} ${providerName} - Qualité: ${quality.score}%. Bonnes données extraites. Veuillez vérifier les détails.`,
+            description: `🚀 Extraction V2 - Qualité: ${quality.score}%. Bonnes données extraites. Veuillez vérifier les détails.`,
+          });
+        } else if (quality.score >= 85) {
+          toast({
+            title: "🏆 Extraction V2 Premium", 
+            description: `Qualité exceptionnelle: ${quality.score}%. Toutes les données ont été extraites avec précision!`,
           });
         } else {
           toast({
-            title: "Extraction excellente", 
-            description: `${providerIcon} ${providerName} - Qualité: ${quality.score}%. Extraction complète réussie!`,
+            title: "✨ Extraction V2 Excellente", 
+            description: `Qualité: ${quality.score}%. Extraction complète réussie avec le système optimisé!`,
           });
         }
       } else {
@@ -731,11 +736,11 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
           </div>
           
           <h3 className="text-base sm:text-lg font-semibold text-wine-deep mb-2 text-center">
-            {isDragActive ? 'Déposez votre fichier ici' : 'Uploadez une fiche technique'}
+            {isDragActive ? 'Déposez votre fichier ici' : '🚀 Extraction V2 - Système optimisé'}
           </h3>
           
           <p className="text-sm text-muted-foreground text-center mb-4 max-w-md">
-            Glissez-déposez un fichier PDF ou cliquez pour sélectionner. Notre IA extraira automatiquement toutes les informations produit.
+            Glissez-déposez un fichier PDF ou cliquez pour sélectionner. Notre système V2 avec IA avancée extraira automatiquement toutes les informations produit avec une précision remarquable.
           </p>
           
           <Button variant="outline" className="mb-3 hover-scale">

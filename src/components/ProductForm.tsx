@@ -46,6 +46,35 @@ export const ProductForm = ({ initialData, extractedText, organizationId, onSucc
   const [newAward, setNewAward] = useState("");
   const [newCertification, setNewCertification] = useState("");
 
+  // Quality badge component
+  const QualityBadge = ({ score }: { score: number }) => {
+    if (score >= 85) {
+      return (
+        <Badge variant="default" className="bg-gradient-to-r from-emerald-500 to-green-600 text-white border-0 shadow-md">
+          🏆 V2 Premium - {score}%
+        </Badge>
+      );
+    } else if (score >= 70) {
+      return (
+        <Badge variant="secondary" className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white border-0">
+          ✨ V2 Excellent - {score}%
+        </Badge>
+      );
+    } else if (score >= 40) {
+      return (
+        <Badge variant="outline" className="border-amber-300 text-amber-700 bg-amber-50">
+          🚀 V2 Partiel - {score}%
+        </Badge>
+      );
+    } else {
+      return (
+        <Badge variant="outline" className="border-red-300 text-red-700 bg-red-50">
+          🚀 V2 Basique - {score}%
+        </Badge>
+      );
+    }
+  };
+
   const createMutation = useCreateProduct();
 
   const form = useForm<ProductFormData>({
@@ -109,38 +138,25 @@ export const ProductForm = ({ initialData, extractedText, organizationId, onSucc
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Indicateur de qualité si les données ont été extraites */}
+      {/* V2 Quality Badge System */}
       {extractionQuality !== undefined && (
-        <Card className={`animate-scale-in ${
-          extractionQuality < 50 ? 'border-destructive/50 bg-destructive/5' : 
-          extractionQuality < 80 ? 'border-warning/50 bg-warning/5' : 
-          'border-success/50 bg-success/5'
-        }`}>
-          <CardContent className="py-3">
-            <div className="flex items-center gap-3">
-              <div className={`h-2 w-2 rounded-full ${
-                extractionQuality < 50 ? 'bg-destructive' :
-                extractionQuality < 80 ? 'bg-warning' :
-                'bg-success'
-              }`} />
-              <span className="text-sm font-medium">
-                Qualité d'extraction: {extractionQuality}%
-              </span>
-              {extractionQuality < 50 && (
-                <Badge variant="destructive" className="text-xs">
-                  Vérification requise
-                </Badge>
-              )}
-              {extractionQuality >= 50 && extractionQuality < 80 && (
-                <Badge variant="secondary" className="text-xs">
-                  À vérifier
-                </Badge>
-              )}
-              {extractionQuality >= 80 && (
-                <Badge variant="default" className="text-xs">
-                  Bonne qualité
-                </Badge>
-              )}
+        <Card className="animate-scale-in border-gradient-subtle bg-gradient-to-r from-background to-muted/20">
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
+                  🚀
+                </div>
+                <div className="space-y-1">
+                  <div className="text-sm font-medium text-foreground">
+                    Système d'extraction V2 (Optimisé)
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Extraction automatique avec IA avancée
+                  </div>
+                </div>
+              </div>
+              <QualityBadge score={extractionQuality} />
             </div>
           </CardContent>
         </Card>
