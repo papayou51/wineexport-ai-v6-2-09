@@ -169,7 +169,24 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
           });
         }
         
-        onDataExtracted(extractResult.extractedData, extractResult.extractedText, backendQualityScore);
+        // Transform V2 API data to ProductData interface format
+        const transformV2ToProductData = (v2Data: any) => {
+          return {
+            ...v2Data,
+            // Map V2 camelCase fields to ProductData snake_case fields
+            name: v2Data.productName || v2Data.name,
+            tasting_notes: v2Data.tastingNotes || v2Data.tasting_notes,
+            alcohol_percentage: v2Data.abv_percent || v2Data.alcohol_percentage,
+            description: v2Data.description || v2Data.tastingNotes, // Fallback to tasting notes if no description
+            // Remove V2-specific fields that don't match ProductData
+            productName: undefined,
+            tastingNotes: undefined,
+            abv_percent: undefined
+          };
+        };
+        
+        const transformedData = transformV2ToProductData(extractResult.extractedData);
+        onDataExtracted(transformedData, extractResult.extractedText, backendQualityScore);
         
         // Enhanced feedback with diagnostic information
         const providerName = extractResult.extractionSource || extractResult.metadata?.provider || 'V2';
