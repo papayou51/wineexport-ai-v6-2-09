@@ -85,34 +85,55 @@ serve(async (req) => {
     let threadId: string | null = null;
 
     try {
-      // 3) Create assistant - Force best model for 100% ChatGPT analysis
-      const model = "gpt-5-2025-08-07"; // Always use best model
-      console.log('Creating assistant with model:', model);
+      // 3) Create assistant with compatible Assistants models (fallback)
+      const candidateModels = [
+        "gpt-4.1-2025-04-14",
+        "o4-mini-2025-04-16",
+        "gpt-4o-mini"
+      ];
+      let modelUsed: string | null = null;
 
-      const assistantResponse = await fetch('https://api.openai.com/v1/assistants', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openaiApiKey}`,
-          'Content-Type': 'application/json',
-          'OpenAI-Beta': 'assistants=v2',
-        },
-        body: JSON.stringify({
-          name: 'Expert French Wine Technical Sheet Analyzer',
-          instructions: PRODUCT_EXTRACTION_PROMPT,
-          model,
-          tools: [{ type: 'file_search' }],
-        }),
-      });
+      for (const m of candidateModels) {
+        console.log('Creating assistant with model:', m);
+        const resp = await fetch('https://api.openai.com/v1/assistants', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openaiApiKey}`,
+            'Content-Type': 'application/json',
+            'OpenAI-Beta': 'assistants=v2',
+          },
+          body: JSON.stringify({
+            name: 'Expert French Wine Technical Sheet Analyzer',
+            instructions: PRODUCT_EXTRACTION_PROMPT,
+            model: m,
+            tools: [{ type: 'file_search' }],
+          }),
+        });
 
-      if (!assistantResponse.ok) {
-        const assistantError = await assistantResponse.text();
-        console.error('Failed to create assistant:', assistantError);
-        throw new Error(`Assistant Creation Error: ${assistantError}`);
+        if (resp.ok) {
+          const assistant = await resp.json();
+          assistantId = assistant.id;
+          modelUsed = m;
+          console.log('Assistant created:', assistantId, 'with model:', modelUsed);
+          break;
+        } else {
+          const errText = await resp.text();
+          console.error('Failed to create assistant with', m, ':', errText);
+          try {
+            const errJson = JSON.parse(errText);
+            const code = errJson?.error?.code;
+            const message = errJson?.error?.message || '';
+            if (code === 'unsupported_model' || message.includes('cannot be used with the Assistants API')) {
+              continue; // try next model
+            }
+          } catch (_e) {}
+          throw new Error(`Assistant Creation Error: ${errText}`);
+        }
       }
 
-      const assistant = await assistantResponse.json();
-      assistantId = assistant.id;
-      console.log('Assistant created:', assistantId);
+      if (!assistantId || !modelUsed) {
+        throw new Error('NO_SUPPORTED_ASSISTANTS_MODEL: Aucun modèle compatible avec l’API Assistants n’a été trouvé.');
+      }
 
       // 4) Create thread
       const threadResponse = await fetch('https://api.openai.com/v1/threads', {
@@ -358,7 +379,7 @@ Retourner UNIQUEMENT un JSON valide avec TOUTES les données extraites.`,
             filename: fileName,
             spec_json: validated,
             quality_score: quality,
-            providers: { runs: [{ provider: "openai-assistants", model, ok: true, ms: attempts * 1000 }] }
+            providers: { runs: [{ provider: "openai-assistants", model: modelUsed || "unknown", ok: true, ms: attempts * 1000 }] }
           })
           .select()
           .single();
@@ -379,11 +400,11 @@ Retourner UNIQUEMENT un JSON valide avec TOUTES les données extraites.`,
         extractedData: validated,
         qualityScore: quality,
         extractionSource: "openai-assistants",
-        providers: { runs: [{ provider: "openai-assistants", model, ok: true, ms: attempts * 1000 }] },
+        providers: { runs: [{ provider: "openai-assistants", model: modelUsed || "unknown", ok: true, ms: attempts * 1000 }] },
         specId: insertResult?.id,
         filename: fileName,
         metadata: { 
-          model,
+          model: modelUsed || "unknown",
           source: "openai-assistants",
           version: "v2",
           processingTimeSeconds: attempts
