@@ -400,7 +400,28 @@ const transformV2ToProductData = (v2Data: any) => {
       let errorDescription = "Veuillez réessayer ou contacter le support si le problème persiste.";
       let errorSuggestions = [];
       
-      if (error instanceof Error) {
+      // Handle V2 extraction specific errors
+      if (error.error === 'SCHEMA_VALIDATION_ERROR') {
+        toastErrorMessage = "Erreur de schéma IA";
+        errorDescription = "Mise à jour du système en cours. Réessayez dans 1-2 minutes.";
+        errorSuggestions.push("Réessayez dans quelques minutes");
+        errorSuggestions.push("Le système se corrige automatiquement");
+      } else if (error.error === 'EXTRACTION_TIMEOUT') {
+        toastErrorMessage = "Traitement trop lent";
+        errorDescription = "Document trop complexe. Utilisez un PDF plus simple ou réessayez.";
+        errorSuggestions.push("Utilisez un PDF avec moins de pages");
+        errorSuggestions.push("Réessayez avec une meilleure qualité de scan");
+      } else if (error.error === 'PDF_ACCESS_ERROR') {
+        toastErrorMessage = "PDF inaccessible";
+        errorDescription = "Le PDF ne peut pas être lu. Vérifiez le format et la qualité.";
+        errorSuggestions.push("Vérifiez que le PDF n'est pas protégé");
+        errorSuggestions.push("Exportez le PDF à nouveau");
+      } else if (error.error === 'API_KEY_ERROR') {
+        toastErrorMessage = "Problème d'authentification";
+        errorDescription = "Service IA temporairement indisponible. Contactez le support.";
+        errorSuggestions.push("Contactez le support technique");
+        errorSuggestions.push("Réessayez plus tard");
+      } else if (error instanceof Error) {
         const errorMsg = error.message.toLowerCase();
         
         if (errorMsg.includes('bucket not found')) {

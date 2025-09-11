@@ -84,12 +84,12 @@ serve(async (req) => {
     let assistantId: string | null = null;
     let threadId: string | null = null;
 
-    // JSON schema to enforce strict structured output with citations
+    // JSON schema for OpenAI Structured Outputs (strict mode)
     const PRODUCT_JSON_SCHEMA = {
       name: "product_spec",
       schema: {
         type: "object",
-        additionalProperties: true,
+        additionalProperties: false,
         properties: {
           name: { anyOf: [{ type: "string", minLength: 1 }, { type: "null" }] },
           appellation: { anyOf: [{ type: "string", minLength: 2 }, { type: "null" }] },
@@ -107,8 +107,57 @@ serve(async (req) => {
             ]
           },
           tasting_notes: { anyOf: [{ type: "string" }, { type: "null" }] },
-          technical_specs: { anyOf: [{ type: "object" }, { type: "null" }] },
-          producer_contact: { anyOf: [{ type: "object" }, { type: "null" }] },
+          technical_specs: {
+            anyOf: [
+              {
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  ph: { anyOf: [{ type: "number" }, { type: "string" }, { type: "null" }] },
+                  acidity_gL: { anyOf: [{ type: "number" }, { type: "string" }, { type: "null" }] },
+                  residual_sugar_gL: { anyOf: [{ type: "number" }, { type: "string" }, { type: "null" }] },
+                  so2_total_mgL: { anyOf: [{ type: "number" }, { type: "string" }, { type: "null" }] },
+                  elevage: { anyOf: [{ type: "string" }, { type: "null" }] },
+                  vinification: { anyOf: [{ type: "string" }, { type: "null" }] },
+                  ageing: { anyOf: [{ type: "string" }, { type: "null" }] },
+                  closure: { anyOf: [{ type: "string" }, { type: "null" }] },
+                  sulfites: { anyOf: [{ type: "string" }, { type: "null" }] },
+                  serving_temp_C: { anyOf: [{ type: "number" }, { type: "string" }, { type: "null" }] },
+                  yield_HlHa: { anyOf: [{ type: "number" }, { type: "string" }, { type: "null" }] },
+                  packaging: { anyOf: [{ type: "string" }, { type: "null" }] },
+                  other_specs: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      additionalProperties: false,
+                      properties: {
+                        key: { type: "string" },
+                        value: { anyOf: [{ type: "string" }, { type: "number" }, { type: "null" }] }
+                      },
+                      required: ["key", "value"]
+                    }
+                  }
+                }
+              },
+              { type: "null" }
+            ]
+          },
+          producer_contact: {
+            anyOf: [
+              {
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  name: { anyOf: [{ type: "string" }, { type: "null" }] },
+                  address: { anyOf: [{ type: "string" }, { type: "null" }] },
+                  phone: { anyOf: [{ type: "string" }, { type: "null" }] },
+                  email: { anyOf: [{ type: "string" }, { type: "null" }] },
+                  website: { anyOf: [{ type: "string" }, { type: "null" }] }
+                }
+              },
+              { type: "null" }
+            ]
+          },
           certifications: {
             anyOf: [
               { type: "array", items: { type: "string" } },
@@ -123,20 +172,23 @@ serve(async (req) => {
           },
           citations: {
             type: "object",
-            additionalProperties: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  page: { type: "integer", minimum: 1 },
-                  evidence: { type: "string" }
-                },
-                required: ["page"],
-                additionalProperties: true
-              }
+            additionalProperties: false,
+            properties: {
+              name: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
+              appellation: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
+              region: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
+              country: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
+              color: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
+              vintage: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
+              alcohol_percentage: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
+              volume_ml: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
+              grapes: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
+              tasting_notes: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
+              technical_specs: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } }
             }
           }
-        }
+        },
+        required: ["name", "appellation", "region", "country", "color", "vintage", "alcohol_percentage", "volume_ml", "grapes", "tasting_notes", "technical_specs", "producer_contact", "certifications", "awards", "citations"]
       },
       strict: true
     } as const;
@@ -254,19 +306,64 @@ Sortie: retourner UNIQUEMENT un JSON valide (pas de texte avant/après) avec des
         throw new Error(`Message Creation Error: ${messageError}`);
       }
 
-      // 6) Run assistant
-      const runResponse = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openaiApiKey}`,
-          'Content-Type': 'application/json',
-          'OpenAI-Beta': 'assistants=v2',
-        },
-        body: JSON.stringify({
-          assistant_id: assistantId,
-          response_format: { type: 'json_schema', json_schema: PRODUCT_JSON_SCHEMA },
-        }),
-      });
+      // 6) Run assistant with fallback for schema issues
+      let runResponse;
+      let useStrictSchema = true;
+      
+      try {
+        runResponse = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openaiApiKey}`,
+            'Content-Type': 'application/json',
+            'OpenAI-Beta': 'assistants=v2',
+          },
+          body: JSON.stringify({
+            assistant_id: assistantId,
+            response_format: { type: 'json_schema', json_schema: PRODUCT_JSON_SCHEMA },
+          }),
+        });
+        
+        // If schema is rejected, try fallback without strict mode
+        if (!runResponse.ok) {
+          const errorText = await runResponse.text();
+          if (errorText.includes('additionalProperties') || errorText.includes('invalid_json_schema')) {
+            console.log('⚠️ Strict schema rejected, falling back to non-strict mode');
+            useStrictSchema = false;
+            
+            const fallbackSchema = { ...PRODUCT_JSON_SCHEMA };
+            fallbackSchema.strict = false;
+            
+            runResponse = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${openaiApiKey}`,
+                'Content-Type': 'application/json',
+                'OpenAI-Beta': 'assistants=v2',
+              },
+              body: JSON.stringify({
+                assistant_id: assistantId,
+                response_format: { type: 'json_schema', json_schema: fallbackSchema },
+              }),
+            });
+          }
+        }
+      } catch (schemaError: any) {
+        console.error('Schema error, trying without structured output:', schemaError);
+        useStrictSchema = false;
+        
+        runResponse = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openaiApiKey}`,
+            'Content-Type': 'application/json',
+            'OpenAI-Beta': 'assistants=v2',
+          },
+          body: JSON.stringify({
+            assistant_id: assistantId,
+          }),
+        });
+      }
 
       if (!runResponse.ok) {
         const runError = await runResponse.text();
@@ -537,10 +634,29 @@ Sortie: retourner UNIQUEMENT un JSON valide (pas de texte avant/après) avec des
   } catch (error: any) {
     console.error('=== EXTRACTION V2 FAILED ===', error);
     
+    // Enhanced error classification
+    let errorType = "UNKNOWN_ERROR";
+    let errorDetails = error.toString();
+    
+    if (error.message?.includes('invalid_json_schema') || error.message?.includes('additionalProperties')) {
+      errorType = "SCHEMA_VALIDATION_ERROR";
+      errorDetails = "Erreur de schéma de sortie IA. Réessayez dans 1 minute.";
+    } else if (error.message?.includes('timeout')) {
+      errorType = "EXTRACTION_TIMEOUT";
+      errorDetails = "Extraction trop lente. Réessayez avec un PDF plus simple.";
+    } else if (error.message?.includes('Failed to fetch PDF') || error.message?.includes('404')) {
+      errorType = "PDF_ACCESS_ERROR";
+      errorDetails = "PDF inaccessible. Vérifiez le fichier et réessayez.";
+    } else if (error.message?.includes('API key') || error.message?.includes('unauthorized')) {
+      errorType = "API_KEY_ERROR";
+      errorDetails = "Problème d'authentification API. Contactez le support.";
+    }
+    
     return new Response(JSON.stringify({
       success: false,
-      error: error.message || "UNKNOWN_ERROR",
-      details: error.toString(),
+      error: errorType,
+      details: errorDetails,
+      originalError: error.message || "UNKNOWN_ERROR",
       providers: { runs: [{ provider: "openai-assistants", ok: false, error: error.message }] }
     }), {
       status: 200,
