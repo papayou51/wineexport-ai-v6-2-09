@@ -199,14 +199,32 @@ export function normalizeSpec(raw: ProductSpec): ProductSpec {
     pruned.certifications = [pruned.certifications];
   }
 
-  // citations: garantir { field: number[] }
+  // citations: preserve structured evidence { page, evidence } and accept legacy arrays
   if (pruned.citations && typeof pruned.citations === "object") {
-    for (const k of Object.keys(pruned.citations)) {
-      const arr = pruned.citations[k];
-      pruned.citations[k] = Array.isArray(arr)
-        ? arr.map((n: any) => toInt(n)).filter((n: any) => Number.isInteger(n))
-        : [];
+    const fixed: any = {};
+    for (const [field, arr] of Object.entries(pruned.citations)) {
+      if (Array.isArray(arr)) {
+        fixed[field] = arr.map((item: any) => {
+          if (item && typeof item === "object") {
+            const page = toInt((item as any).page);
+            const evidence = (item as any).evidence != null ? String((item as any).evidence) : null;
+            if (page) return { page, evidence };
+            return null;
+          } else if (typeof item === "number") {
+            const page = toInt(item);
+            return page ? { page, evidence: null } : null;
+          } else if (typeof item === "string") {
+            const m = item.match(/(\d{1,4})/);
+            const page = m ? toInt(m[1]) : null;
+            return page ? { page, evidence: item } : null;
+          }
+          return null;
+        }).filter(Boolean);
+      } else {
+        fixed[field] = [];
+      }
     }
+    pruned.citations = fixed;
   } else {
     pruned.citations = {};
   }

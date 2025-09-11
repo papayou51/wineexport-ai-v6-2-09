@@ -506,6 +506,12 @@ Sortie: retourner UNIQUEMENT un JSON valide (pas de texte avant/après) avec des
       // 10) Normalize, enforce citations and sanity checks
       let normalized = normalizeSpec(extractedData);
       console.log('✅ Spec normalized');
+      // Log citations count for monitoring
+      try {
+        const c = (normalized as any)?.citations || {};
+        const counts = Object.fromEntries(Object.entries(c).map(([k, v]) => [k, Array.isArray(v) ? (v as any[]).length : 0]));
+        console.log('🔎 Citations per field:', counts);
+      } catch (_e) {}
 
       // Enforce evidence-backed critical fields
       const criticalFields = ['vintage', 'alcohol_percentage', 'volume_ml', 'appellation'];
