@@ -161,6 +161,7 @@ export const useExtractProductData = () => {
       };
       const appStr = toAppellationString(spec.appellation) || spec.region || null;
 
+
       const mappedData = {
         ...data,
         extractedData: {
@@ -172,17 +173,19 @@ export const useExtractProductData = () => {
             spec.color || spec.type
           ].filter(Boolean).join(" ") || "Produit sans nom",
           vintage: spec.vintage || spec.year || null,
-          abv_percent: spec.abv_percent || spec.alcohol || null,
+          // Keep both for downstream mappers
+          abv_percent: spec.abv_percent ?? spec.alcohol ?? spec.alcohol_percentage ?? null,
+          alcohol_percentage: spec.alcohol_percentage ?? spec.abv_percent ?? spec.alcohol ?? null,
           volume_ml: spec.volume_ml || (
             /(\d{3,4})\s?m?l/i.test(spec.volume || '') ? parseInt(RegExp.$1) : 750
           ),
           appellation: appStr,
-          tastingNotes: Array.isArray(spec.tastingNotes) 
-            ? spec.tastingNotes.join(" · ") 
-            : (spec.tastingNotes || null)
+          tastingNotes: Array.isArray(spec.tastingNotes)
+            ? spec.tastingNotes.join(" · ")
+            : (spec.tastingNotes || spec.tasting_notes || null)
         }
       };
-      
+
       
       return mappedData;
     },

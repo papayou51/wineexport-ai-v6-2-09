@@ -2,50 +2,50 @@
 export type ProductSpec = Record<string, any>;
 
 const ALLOWED = new Set([
-  // Core fields
-  "productName","producer","brand","appellation","region","country",
-  "color","style","vintage","grapes","abv_percent","residualSugar_gL",
-  "acidity_gL","closure","volume_ml","sulfites","organicCert","awards","tastingNotes",
-  "foodPairing","servingTemp_C","ageingPotential_years",
-  "exportNetPrice_EUR","availableVolume_cases","packaging",
+  // Canonical V2 fields (snake_case preferred)
+  "name","category","vintage","alcohol_percentage","volume_ml","description","tasting_notes","appellation",
+  "awards","certifications","technical_specs","terroir","vine_age","yield_hl_ha","vinification","aging_details",
+  "bottling_info","ean_code","packaging_info","availability","producer_contact",
+
+  // Legacy/alternate fields kept for compatibility (will be aliased to canonical)
+  "productName","producer","brand","region","country","color","grapes",
+  "abv_percent","residualSugar_gL","acidity_gL","closure","sulfites","organicCert","foodPairing",
+  "servingTemp_C","ageingPotential_years","exportNetPrice_EUR","availableVolume_cases","packaging",
   "allergenInfo","labelComplianceNotes","citations","confidence",
-  // Enhanced V2 fields
-  "terroir","vineAge_years","yieldHlHa","vinificationDetails","agingDetails",
-  "bottlingDate","eanCode","packagingDetails","availability","producerContact",
-  "technical_specs","certifications","ph","so2_total","total_acidity",
-  "producer_website","producer_email","producer_phone","vineyardAltitude_m","exposure",
-  "soilType","oakAging","ageingMonths"
+  // Extra technical metrics occasionally returned
+  "ph","so2_total","total_acidity","producer_website","producer_email","producer_phone",
+  "vineyardAltitude_m","exposure","soilType","oakAging","ageingMonths"
 ]);
 
 const COLORS = new Set(["red","white","rosé","sparkling","orange"]);
 
 const ALIASES: Record<string, string> = {
-  // Common camelCase -> normalized keys
-  abvPercent: "abv_percent",
-  residualSugar: "residualSugar_gL",
-  residualSugar_gL: "residualSugar_gL",
-  acidityGL: "acidity_gL",
-  servingTempC: "servingTemp_C",
-  ageingPotentialYears: "ageingPotential_years",
-  exportNetPriceEUR: "exportNetPrice_EUR",
-  availableVolumeCases: "availableVolume_cases",
+  // Legacy -> Canonical (snake_case)
+  productName: "name",
+  tastingNotes: "tasting_notes",
+  tasting_notes: "tasting_notes",
+  abvPercent: "alcohol_percentage",
+  abv_percent: "alcohol_percentage",
+  alcohol: "alcohol_percentage",
   volumeMl: "volume_ml",
-  tasting_notes: "tastingNotes",
-  tastingNotes: "tastingNotes",
-  food_pairing: "foodPairing",
+  volume_ml: "volume_ml",
+  food_pairing: "foodPairing", // kept for compatibility
   organicCertification: "organicCert",
   organic_cert: "organicCert",
-  vineAgeYears: "vineAge_years",
-  yieldHLHa: "yieldHlHa",
-  yield_hl_ha: "yieldHlHa",
-  vinification: "vinificationDetails",
-  agingDetails: "agingDetails",
-  bottling_date: "bottlingDate",
-  ean: "eanCode",
-  ean_code: "eanCode",
-  packagingDetails: "packagingDetails",
-  producerContact: "producerContact",
-  producer_contact: "producerContact",
+
+  // V2 camelCase -> canonical snake_case
+  vineAgeYears: "vine_age",
+  vineAge_years: "vine_age",
+  yieldHLHa: "yield_hl_ha",
+  yield_hl_ha: "yield_hl_ha",
+  vinificationDetails: "vinification",
+  agingDetails: "aging_details",
+  bottlingDate: "bottling_info",
+  ean: "ean_code",
+  ean_code: "ean_code",
+  packagingDetails: "packaging_info",
+  producerContact: "producer_contact",
+  producer_contact: "producer_contact",
   vineyardAltitudeM: "vineyardAltitude_m",
   soil: "soilType",
   appellationName: "appellation",
@@ -87,7 +87,8 @@ export function normalizeSpec(raw: ProductSpec): ProductSpec {
 
   // 2) coercitions usuelles
   if (pruned.vintage != null) pruned.vintage = toInt(pruned.vintage);
-  if (pruned.abv_percent != null) pruned.abv_percent = toNum(pruned.abv_percent);
+  if (pruned.alcohol_percentage != null) pruned.alcohol_percentage = toNum(pruned.alcohol_percentage);
+  if (pruned.abv_percent != null && pruned.alcohol_percentage == null) pruned.alcohol_percentage = toNum(pruned.abv_percent);
   if (pruned.residualSugar_gL != null) pruned.residualSugar_gL = toNum(pruned.residualSugar_gL);
   if (pruned.acidity_gL != null) pruned.acidity_gL = toNum(pruned.acidity_gL);
   if (pruned.volume_ml != null) {
@@ -111,14 +112,32 @@ export function normalizeSpec(raw: ProductSpec): ProductSpec {
   if (pruned.sulfites != null) pruned.sulfites = toBool(pruned.sulfites);
 
   // V2 enhanced fields coercions
-  if (pruned.vineAge_years != null) pruned.vineAge_years = toInt(pruned.vineAge_years);
-  if (pruned.yieldHlHa != null) pruned.yieldHlHa = toNum(pruned.yieldHlHa);
+  if (pruned.vine_age != null) pruned.vine_age = toInt(pruned.vine_age);
+  if (pruned.vineAge_years != null && pruned.vine_age == null) pruned.vine_age = toInt(pruned.vineAge_years);
+  if (pruned.yield_hl_ha != null) pruned.yield_hl_ha = toNum(pruned.yield_hl_ha);
+  if (pruned.yieldHlHa != null && pruned.yield_hl_ha == null) pruned.yield_hl_ha = toNum(pruned.yieldHlHa);
   if (pruned.ph != null) pruned.ph = toNum(pruned.ph);
   if (pruned.so2_total != null) pruned.so2_total = toNum(pruned.so2_total);
   if (pruned.total_acidity != null) pruned.total_acidity = toNum(pruned.total_acidity);
   if (pruned.vineyardAltitude_m != null) pruned.vineyardAltitude_m = toInt(pruned.vineyardAltitude_m);
   if (pruned.ageingMonths != null) pruned.ageingMonths = toInt(pruned.ageingMonths);
-  
+
+  // Build technical_specs object if missing and migrate known fields
+  const tech: any = typeof pruned.technical_specs === "object" && pruned.technical_specs !== null
+    ? { ...pruned.technical_specs }
+    : {};
+  if (tech.ph == null && pruned.ph != null) tech.ph = pruned.ph;
+  if (tech.total_acidity == null && (pruned.total_acidity != null || pruned.acidity_gL != null)) {
+    const ta = pruned.total_acidity ?? pruned.acidity_gL;
+    tech.total_acidity = typeof ta === "number" ? `${ta}` : `${ta ?? ''}`.trim() || null;
+  }
+  if (tech.residual_sugar == null && pruned.residualSugar_gL != null) {
+    const rs = pruned.residualSugar_gL;
+    tech.residual_sugar = typeof rs === "number" ? `${rs}` : `${rs ?? ''}`.trim() || null;
+  }
+  if (tech.so2_total == null && pruned.so2_total != null) tech.so2_total = pruned.so2_total;
+  if (Object.keys(tech).length) pruned.technical_specs = tech;
+
   // Normalize color
   if (pruned.color && typeof pruned.color === "string") {
     const c = pruned.color.toLowerCase().trim();
@@ -199,19 +218,20 @@ export function normalizeSpec(raw: ProductSpec): ProductSpec {
     pruned.confidence = {};
   }
 
-  // Normalize producerContact shape
-  if (pruned.producerContact != null) {
-    const pc: any = pruned.producerContact;
-    if (typeof pc === "string") {
-      pruned.producerContact = { name: pc };
-    } else if (typeof pc === "object") {
-      pruned.producerContact = {
-        name: ((pc.name ?? pc.producer) ? String(pc.name ?? pc.producer).trim() : null),
-        email: pc.email ?? null,
-        phone: pc.phone ?? pc.tel ?? null,
-        website: pc.website ?? pc.site ?? null,
+  // Normalize producer contact shape to producer_contact
+  const rawPc: any = pruned.producer_contact ?? pruned.producerContact;
+  if (rawPc != null) {
+    if (typeof rawPc === "string") {
+      pruned.producer_contact = { name: rawPc };
+    } else if (typeof rawPc === "object") {
+      pruned.producer_contact = {
+        name: ((rawPc.name ?? rawPc.producer) ? String(rawPc.name ?? rawPc.producer).trim() : null),
+        email: rawPc.email ?? null,
+        phone: rawPc.phone ?? rawPc.tel ?? null,
+        website: rawPc.website ?? rawPc.site ?? null,
       };
     }
+    delete pruned.producerContact;
   }
   
   return pruned;

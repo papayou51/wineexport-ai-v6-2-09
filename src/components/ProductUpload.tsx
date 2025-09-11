@@ -236,7 +236,7 @@ const transformV2ToProductData = (v2Data: any) => {
         };
         
         const transformedData = transformV2ToProductData(extractResult.extractedData);
-        onDataExtracted(transformedData, extractResult.extractedText, backendQualityScore);
+        onDataExtracted(transformedData, extractResult.extractedText || "", backendQualityScore);
         
         // Enhanced feedback with diagnostic information
         const providerName = extractResult.extractionSource || extractResult.metadata?.provider || 'V2';
