@@ -169,7 +169,7 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
           });
         }
         
-        // Transform V2 API data to ProductData interface format
+        // Transform V2 API data to ProductData - Preserve ALL ChatGPT extractions
 const transformV2ToProductData = (v2Data: any) => {
   const formatAppellation = (a: any): string | null => {
     if (!a) return null;
@@ -181,14 +181,18 @@ const transformV2ToProductData = (v2Data: any) => {
     }
     return null;
   };
+  
+  console.log('🔄 V2 Data received for transformation:', Object.keys(v2Data));
+  
   return {
+            // Keep ALL original data first
             ...v2Data,
-            // Map V2 camelCase fields to ProductData snake_case fields
-            name: v2Data.productName || v2Data.name,
-            tasting_notes: v2Data.tastingNotes || v2Data.tasting_notes,
-            alcohol_percentage: v2Data.abv_percent || v2Data.alcohol_percentage,
-            description: v2Data.description || v2Data.tastingNotes, // Fallback to tasting notes if no description
-            appellation: formatAppellation(v2Data.appellation) || v2Data.region || undefined,
+            // Enhanced field mapping with multiple fallbacks - NEVER lose data
+            name: v2Data.name || v2Data.productName || v2Data.producer || v2Data.brand || `Vin ${v2Data.appellation || 'Français'}`,
+            tasting_notes: v2Data.tasting_notes || v2Data.tastingNotes || v2Data.description || '',
+            alcohol_percentage: v2Data.alcohol_percentage || v2Data.abv_percent || v2Data.alcohol || null,
+            description: v2Data.description || v2Data.tasting_notes || v2Data.tastingNotes || '',
+            appellation: formatAppellation(v2Data.appellation) || v2Data.region || v2Data.country || null,
             // Enhanced field mappings
             terroir: v2Data.terroir,
             vine_age: v2Data.vineAge_years || v2Data.vine_age,

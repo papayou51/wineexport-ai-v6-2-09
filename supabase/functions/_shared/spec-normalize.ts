@@ -78,11 +78,12 @@ function toBool(v: any): boolean | null {
 }
 
 export function normalizeSpec(raw: ProductSpec): ProductSpec {
-  // 1) on enlève les champs inconnus
+  // 1) Preserve ALL fields from ChatGPT - minimal filtering for 100% extraction
   const pruned: ProductSpec = {};
   for (const [k, v] of Object.entries(raw || {})) {
-    const key = ALLOWED.has(k) ? k : (ALIASES[k] ?? null);
-    if (key) pruned[key] = v;
+    // Accept all known fields + common variations 
+    const key = ALLOWED.has(k) ? k : (ALIASES[k] ?? k); // Keep unknown fields as-is
+    if (v !== null && v !== undefined && v !== "") pruned[key] = v; // Only filter truly empty values
   }
 
   // 2) coercitions usuelles
@@ -138,7 +139,7 @@ export function normalizeSpec(raw: ProductSpec): ProductSpec {
   if (tech.so2_total == null && pruned.so2_total != null) tech.so2_total = pruned.so2_total;
   if (Object.keys(tech).length) pruned.technical_specs = tech;
 
-  // Normalize color
+  // Preserve color from ChatGPT extraction - minimal normalization
   if (pruned.color && typeof pruned.color === "string") {
     const c = pruned.color.toLowerCase().trim();
     if (c === "rouge" || c === "red") pruned.color = "red";
@@ -147,7 +148,8 @@ export function normalizeSpec(raw: ProductSpec): ProductSpec {
     else if (c === "effervescent" || c === "sparkling" || c === "champagne") pruned.color = "sparkling";
     else if (c === "orange" || c === "amber") pruned.color = "orange";
     else if (COLORS.has(c)) pruned.color = c;
-    else pruned.color = null;
+    // Keep unknown colors instead of nullifying - ChatGPT may extract valid variations
+    else pruned.color = pruned.color; // Preserve original value
   }
 
   // Normalize appellation into a readable string

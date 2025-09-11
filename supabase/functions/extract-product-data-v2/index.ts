@@ -85,8 +85,8 @@ serve(async (req) => {
     let threadId: string | null = null;
 
     try {
-      // 3) Create assistant
-      const model = Deno.env.get("OPENAI_MODEL") || "gpt-5-2025-08-07";
+      // 3) Create assistant - Force best model for 100% ChatGPT analysis
+      const model = "gpt-5-2025-08-07"; // Always use best model
       console.log('Creating assistant with model:', model);
 
       const assistantResponse = await fetch('https://api.openai.com/v1/assistants', {
@@ -97,7 +97,7 @@ serve(async (req) => {
           'OpenAI-Beta': 'assistants=v2',
         },
         body: JSON.stringify({
-          name: 'Wine Spec Extractor V2 Enhanced',
+          name: 'Expert French Wine Technical Sheet Analyzer',
           instructions: PRODUCT_EXTRACTION_PROMPT,
           model,
           tools: [{ type: 'file_search' }],
@@ -145,7 +145,21 @@ serve(async (req) => {
         },
         body: JSON.stringify({
           role: 'user',
-          content: `Analyse cette fiche technique de vin PDF et extrait toutes les spécifications en JSON selon le format exact demandé. Fichier: ${fileName}`,
+          content: `🍷 ANALYSE COMPLÈTE DE FICHE TECHNIQUE FRANÇAISE 🍷
+
+MISSION CRITIQUE: Extraire TOUTES les informations de ce PDF (${fileName}) avec une précision de 100%.
+
+RÈGLES ABSOLUES:
+❌ JAMAIS de champs vides - construire les valeurs à partir du nom de fichier ou du contenu si nécessaire
+❌ JAMAIS ignorer les détails techniques - extraire même les informations partielles
+❌ JAMAIS laisser "null" pour name, vintage, alcohol_percentage, volume_ml
+
+✅ TOUJOURS extraire le nom du château/domaine (même depuis le nom de fichier)
+✅ TOUJOURS chercher l'année/millésime partout dans le document
+✅ TOUJOURS convertir les pourcentages français (13,5% → 13.5)
+✅ TOUJOURS remplir volume_ml (750 par défaut pour une bouteille standard)
+
+Retourner UNIQUEMENT un JSON valide avec TOUTES les données extraites.`,
           attachments: [
             {
               file_id: fileUpload.id,
