@@ -149,13 +149,25 @@ export const useExtractProductData = () => {
       const spec = data?.extractedData ?? data?.data ?? {};
       
       // Ensure we have a proper product name with intelligent fallbacks
+      const toAppellationString = (a: any): string | null => {
+        if (!a) return null;
+        if (typeof a === 'string') return a;
+        if (Array.isArray(a)) return a.filter(Boolean).join(', ');
+        if (typeof a === 'object') {
+          const parts = [a.name || a.label || a.appellation, a.region, a.country].filter(Boolean);
+          return parts.length ? parts.join(', ') : null;
+        }
+        return null;
+      };
+      const appStr = toAppellationString(spec.appellation) || spec.region || null;
+
       const mappedData = {
         ...data,
         extractedData: {
           ...spec,
           name: spec.name || spec.productName || [
             spec.producer || spec.brand,
-            spec.appellation || spec.region,
+            appStr,
             spec.vintage || spec.year,
             spec.color || spec.type
           ].filter(Boolean).join(" ") || "Produit sans nom",
@@ -164,7 +176,7 @@ export const useExtractProductData = () => {
           volume_ml: spec.volume_ml || (
             /(\d{3,4})\s?m?l/i.test(spec.volume || '') ? parseInt(RegExp.$1) : 750
           ),
-          appellation: spec.appellation || spec.region || null,
+          appellation: appStr,
           tastingNotes: Array.isArray(spec.tastingNotes) 
             ? spec.tastingNotes.join(" · ") 
             : (spec.tastingNotes || null)

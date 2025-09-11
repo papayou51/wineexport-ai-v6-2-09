@@ -170,14 +170,25 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
         }
         
         // Transform V2 API data to ProductData interface format
-        const transformV2ToProductData = (v2Data: any) => {
-          return {
+const transformV2ToProductData = (v2Data: any) => {
+  const formatAppellation = (a: any): string | null => {
+    if (!a) return null;
+    if (typeof a === 'string') return a;
+    if (Array.isArray(a)) return a.filter(Boolean).join(', ');
+    if (typeof a === 'object') {
+      const parts = [a.name || a.label || a.appellation, a.region, a.country].filter(Boolean);
+      return parts.length ? parts.join(', ') : null;
+    }
+    return null;
+  };
+  return {
             ...v2Data,
             // Map V2 camelCase fields to ProductData snake_case fields
             name: v2Data.productName || v2Data.name,
             tasting_notes: v2Data.tastingNotes || v2Data.tasting_notes,
             alcohol_percentage: v2Data.abv_percent || v2Data.alcohol_percentage,
             description: v2Data.description || v2Data.tastingNotes, // Fallback to tasting notes if no description
+            appellation: formatAppellation(v2Data.appellation) || v2Data.region || undefined,
             // Enhanced field mappings
             terroir: v2Data.terroir,
             vine_age: v2Data.vineAge_years || v2Data.vine_age,

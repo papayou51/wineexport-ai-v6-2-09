@@ -2,15 +2,54 @@
 export type ProductSpec = Record<string, any>;
 
 const ALLOWED = new Set([
+  // Core fields
   "productName","producer","brand","appellation","region","country",
   "color","style","vintage","grapes","abv_percent","residualSugar_gL",
   "acidity_gL","closure","volume_ml","sulfites","organicCert","awards","tastingNotes",
   "foodPairing","servingTemp_C","ageingPotential_years",
   "exportNetPrice_EUR","availableVolume_cases","packaging",
-  "allergenInfo","labelComplianceNotes","citations","confidence"
+  "allergenInfo","labelComplianceNotes","citations","confidence",
+  // Enhanced V2 fields
+  "terroir","vineAge_years","yieldHlHa","vinificationDetails","agingDetails",
+  "bottlingDate","eanCode","packagingDetails","availability","producerContact",
+  "technical_specs","certifications","ph","so2_total","total_acidity",
+  "producer_website","producer_email","producer_phone","vineyardAltitude_m","exposure",
+  "soilType","oakAging","ageingMonths"
 ]);
 
 const COLORS = new Set(["red","white","rosé","sparkling","orange"]);
+
+const ALIASES: Record<string, string> = {
+  // Common camelCase -> normalized keys
+  abvPercent: "abv_percent",
+  residualSugar: "residualSugar_gL",
+  residualSugar_gL: "residualSugar_gL",
+  acidityGL: "acidity_gL",
+  servingTempC: "servingTemp_C",
+  ageingPotentialYears: "ageingPotential_years",
+  exportNetPriceEUR: "exportNetPrice_EUR",
+  availableVolumeCases: "availableVolume_cases",
+  volumeMl: "volume_ml",
+  tasting_notes: "tastingNotes",
+  tastingNotes: "tastingNotes",
+  food_pairing: "foodPairing",
+  organicCertification: "organicCert",
+  organic_cert: "organicCert",
+  vineAgeYears: "vineAge_years",
+  yieldHLHa: "yieldHlHa",
+  yield_hl_ha: "yieldHlHa",
+  vinification: "vinificationDetails",
+  agingDetails: "agingDetails",
+  bottling_date: "bottlingDate",
+  ean: "eanCode",
+  ean_code: "eanCode",
+  packagingDetails: "packagingDetails",
+  producerContact: "producerContact",
+  producer_contact: "producerContact",
+  vineyardAltitudeM: "vineyardAltitude_m",
+  soil: "soilType",
+  appellationName: "appellation",
+};
 
 function toNum(v: any): number | null {
   if (v === null || v === undefined || v === "") return null;
@@ -42,7 +81,8 @@ export function normalizeSpec(raw: ProductSpec): ProductSpec {
   // 1) on enlève les champs inconnus
   const pruned: ProductSpec = {};
   for (const [k, v] of Object.entries(raw || {})) {
-    if (ALLOWED.has(k)) pruned[k] = v;
+    const key = ALLOWED.has(k) ? k : (ALIASES[k] ?? null);
+    if (key) pruned[key] = v;
   }
 
   // 2) coercitions usuelles
@@ -69,6 +109,15 @@ export function normalizeSpec(raw: ProductSpec): ProductSpec {
   if (pruned.exportNetPrice_EUR != null) pruned.exportNetPrice_EUR = toNum(pruned.exportNetPrice_EUR);
   if (pruned.availableVolume_cases != null) pruned.availableVolume_cases = toInt(pruned.availableVolume_cases);
   if (pruned.sulfites != null) pruned.sulfites = toBool(pruned.sulfites);
+
+  // V2 enhanced fields coercions
+  if (pruned.vineAge_years != null) pruned.vineAge_years = toInt(pruned.vineAge_years);
+  if (pruned.yieldHlHa != null) pruned.yieldHlHa = toNum(pruned.yieldHlHa);
+  if (pruned.ph != null) pruned.ph = toNum(pruned.ph);
+  if (pruned.so2_total != null) pruned.so2_total = toNum(pruned.so2_total);
+  if (pruned.total_acidity != null) pruned.total_acidity = toNum(pruned.total_acidity);
+  if (pruned.vineyardAltitude_m != null) pruned.vineyardAltitude_m = toInt(pruned.vineyardAltitude_m);
+  if (pruned.ageingMonths != null) pruned.ageingMonths = toInt(pruned.ageingMonths);
   
   // Normalize color
   if (pruned.color && typeof pruned.color === "string") {
@@ -80,6 +129,21 @@ export function normalizeSpec(raw: ProductSpec): ProductSpec {
     else if (c === "orange" || c === "amber") pruned.color = "orange";
     else if (COLORS.has(c)) pruned.color = c;
     else pruned.color = null;
+  }
+
+  // Normalize appellation into a readable string
+  if (pruned.appellation != null) {
+    const a: any = pruned.appellation;
+    if (typeof a === "object") {
+      const parts = [
+        a.name ?? a.label ?? a.appellation ?? null,
+        a.region ?? null,
+        a.country ?? null
+      ].filter(Boolean);
+      pruned.appellation = parts.length ? parts.join(", ") : null;
+    } else if (Array.isArray(a)) {
+      pruned.appellation = a.filter(Boolean).join(", ");
+    }
   }
 
   // grapes: accepter ["Merlot 60%","Cabernet 40%"] ou [{variety,percent}]
@@ -110,6 +174,9 @@ export function normalizeSpec(raw: ProductSpec): ProductSpec {
   if (pruned.allergenInfo && typeof pruned.allergenInfo === "string") {
     pruned.allergenInfo = [pruned.allergenInfo];
   }
+  if (pruned.certifications && typeof pruned.certifications === "string") {
+    pruned.certifications = [pruned.certifications];
+  }
 
   // citations: garantir { field: number[] }
   if (pruned.citations && typeof pruned.citations === "object") {
@@ -132,5 +199,20 @@ export function normalizeSpec(raw: ProductSpec): ProductSpec {
     pruned.confidence = {};
   }
 
+  // Normalize producerContact shape
+  if (pruned.producerContact != null) {
+    const pc: any = pruned.producerContact;
+    if (typeof pc === "string") {
+      pruned.producerContact = { name: pc };
+    } else if (typeof pc === "object") {
+      pruned.producerContact = {
+        name: ((pc.name ?? pc.producer) ? String(pc.name ?? pc.producer).trim() : null),
+        email: pc.email ?? null,
+        phone: pc.phone ?? pc.tel ?? null,
+        website: pc.website ?? pc.site ?? null,
+      };
+    }
+  }
+  
   return pruned;
 }
