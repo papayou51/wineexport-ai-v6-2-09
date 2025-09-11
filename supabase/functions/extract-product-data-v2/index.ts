@@ -84,6 +84,62 @@ serve(async (req) => {
     let assistantId: string | null = null;
     let threadId: string | null = null;
 
+    // JSON schema to enforce strict structured output with citations
+    const PRODUCT_JSON_SCHEMA = {
+      name: "product_spec",
+      schema: {
+        type: "object",
+        additionalProperties: true,
+        properties: {
+          name: { anyOf: [{ type: "string", minLength: 1 }, { type: "null" }] },
+          appellation: { anyOf: [{ type: "string", minLength: 2 }, { type: "null" }] },
+          region: { anyOf: [{ type: "string" }, { type: "null" }] },
+          country: { anyOf: [{ type: "string" }, { type: "null" }] },
+          color: { anyOf: [{ type: "string" }, { type: "null" }] },
+          vintage: { anyOf: [{ type: "integer", minimum: 1900, maximum: 2100 }, { type: "null" }] },
+          alcohol_percentage: { anyOf: [{ type: "number", minimum: 5, maximum: 25 }, { type: "null" }] },
+          volume_ml: { anyOf: [{ type: "integer", minimum: 50, maximum: 4000 }, { type: "null" }] },
+          grapes: {
+            anyOf: [
+              { type: "array", items: { type: "string" } },
+              { type: "string" },
+              { type: "null" }
+            ]
+          },
+          tasting_notes: { anyOf: [{ type: "string" }, { type: "null" }] },
+          technical_specs: { anyOf: [{ type: "object" }, { type: "null" }] },
+          producer_contact: { anyOf: [{ type: "object" }, { type: "null" }] },
+          certifications: {
+            anyOf: [
+              { type: "array", items: { type: "string" } },
+              { type: "null" }
+            ]
+          },
+          awards: {
+            anyOf: [
+              { type: "array", items: { type: "string" } },
+              { type: "null" }
+            ]
+          },
+          citations: {
+            type: "object",
+            additionalProperties: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  page: { type: "integer", minimum: 1 },
+                  evidence: { type: "string" }
+                },
+                required: ["page"],
+                additionalProperties: true
+              }
+            }
+          }
+        }
+      },
+      strict: true
+    } as const;
     try {
       // 3) Create assistant with compatible Assistants models (fallback)
       const candidateModels = [
@@ -166,21 +222,23 @@ serve(async (req) => {
         },
         body: JSON.stringify({
           role: 'user',
-          content: `🍷 ANALYSE COMPLÈTE DE FICHE TECHNIQUE FRANÇAISE 🍷
+          content: `Extraction structurée de fiche technique (PDF: ${fileName}).
 
-MISSION CRITIQUE: Extraire TOUTES les informations de ce PDF (${fileName}) avec une précision de 100%.
+Exigences:
+- Ne JAMAIS inventer ni déduire. Si une information n'est pas explicitement lisible dans le PDF, mettre null.
+- Citer les sources: remplir "citations" avec, pour chaque champ extrait, une liste d'objets {page, evidence} où "evidence" est un court extrait textuel exact.
+- Interdire l'usage du nom de fichier comme source; ne jamais le citer dans "citations".
+- Millésime: entier [1900..2100] uniquement si clairement présent (p. ex. "Millésime 2021"). Sinon null.
+- Appellation: AOP/AOC/IGP/VDP/etc. uniquement si explicitement mentionnée. Sinon null.
+- Degré alcool (% vol): nombre [5..25], convertir "13,5%" -> 13.5. Sinon null.
+- Volume: en millilitres (ml). Si plusieurs formats, choisir 750 si explicitement indiqué; sinon null.
+- Grapes/Cépages: liste de chaînes; séparer par virgule/puces.
+- Tasting notes/notes de dégustation: texte exact; pas d'invention.
+- technical_specs: inclure pH, acidité totale, SO2, sucre résiduel, élevage, etc. si présents.
+- country par défaut "France" uniquement si le document est manifestement français, sinon null.
 
-RÈGLES ABSOLUES:
-❌ JAMAIS de champs vides - construire les valeurs à partir du nom de fichier ou du contenu si nécessaire
-❌ JAMAIS ignorer les détails techniques - extraire même les informations partielles
-❌ JAMAIS laisser "null" pour name, vintage, alcohol_percentage, volume_ml
-
-✅ TOUJOURS extraire le nom du château/domaine (même depuis le nom de fichier)
-✅ TOUJOURS chercher l'année/millésime partout dans le document
-✅ TOUJOURS convertir les pourcentages français (13,5% → 13.5)
-✅ TOUJOURS remplir volume_ml (750 par défaut pour une bouteille standard)
-
-Retourner UNIQUEMENT un JSON valide avec TOUTES les données extraites.`,
+Sortie: retourner UNIQUEMENT un JSON valide (pas de texte avant/après) avec des clés en snake_case cohérentes avec:
+{name, appellation, region, country, color, vintage, alcohol_percentage, volume_ml, grapes, tasting_notes, technical_specs, producer_contact, certifications, awards, citations}.`,
           attachments: [
             {
               file_id: fileUpload.id,
@@ -206,6 +264,7 @@ Retourner UNIQUEMENT un JSON valide avec TOUTES les données extraites.`,
         },
         body: JSON.stringify({
           assistant_id: assistantId,
+          response_format: { type: 'json_schema', json_schema: PRODUCT_JSON_SCHEMA },
         }),
       });
 
@@ -347,9 +406,39 @@ Retourner UNIQUEMENT un JSON valide avec TOUTES les données extraites.`,
         };
       }
 
-      // 10) Normalize and validate
-      const normalized = normalizeSpec(extractedData);
+      // 10) Normalize, enforce citations and sanity checks
+      let normalized = normalizeSpec(extractedData);
       console.log('✅ Spec normalized');
+
+      // Enforce evidence-backed critical fields
+      const criticalFields = ['vintage', 'alcohol_percentage', 'volume_ml', 'appellation'];
+      const hasCitation = (field: string) => {
+        try {
+          const c = (normalized as any)?.citations?.[field];
+          return Array.isArray(c) && c.length > 0;
+        } catch { return false; }
+      };
+
+      for (const f of criticalFields) {
+        if (!hasCitation(f)) {
+          (normalized as any)[f] = null;
+        }
+      }
+
+      // Sanity constraints
+      const v = (normalized as any).vintage;
+      if (typeof v === 'number' && (v < 1900 || v > 2100)) (normalized as any).vintage = null;
+
+      const abv = (normalized as any).alcohol_percentage ?? (normalized as any).abv_percent;
+      if (typeof abv === 'number') {
+        if (abv < 5 || abv > 25) (normalized as any).alcohol_percentage = null;
+        else (normalized as any).alcohol_percentage = abv;
+      }
+
+      const vol = (normalized as any).volume_ml;
+      if (typeof vol === 'number') {
+        if (vol < 50 || vol > 4000) (normalized as any).volume_ml = null;
+      }
 
       let validated = normalized;
       try {
@@ -360,7 +449,7 @@ Retourner UNIQUEMENT un JSON valide avec TOUTES les données extraites.`,
       }
 
       // 11) Compute quality
-      const quality = computeQuality(validated, { citations: validated.citations });
+      const quality = computeQuality(validated, { citations: (validated as any).citations });
       console.log(`📊 Quality computed: ${quality}%`);
 
       // 12) Save to database
