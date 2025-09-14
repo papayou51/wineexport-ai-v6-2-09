@@ -187,12 +187,12 @@ const transformV2ToProductData = (v2Data: any) => {
   return {
             // Keep ALL original data first
             ...v2Data,
-            // Enhanced field mapping with multiple fallbacks - NEVER lose data
-            name: v2Data.name || v2Data.productName || v2Data.producer || v2Data.brand || `Vin ${v2Data.appellation || 'Français'}`,
-            tasting_notes: v2Data.tasting_notes || v2Data.tastingNotes || v2Data.description || '',
+            // Strict ChatGPT mapping - only display what was actually extracted
+            name: v2Data.name || v2Data.productName || null,
+            tasting_notes: v2Data.tasting_notes || v2Data.tastingNotes || null,
             alcohol_percentage: v2Data.alcohol_percentage || v2Data.abv_percent || v2Data.alcohol || null,
-            description: v2Data.description || v2Data.tasting_notes || v2Data.tastingNotes || '',
-            appellation: formatAppellation(v2Data.appellation) || v2Data.region || v2Data.country || null,
+            description: v2Data.description || null,
+            appellation: formatAppellation(v2Data.appellation) || null,
             // Enhanced field mappings
             terroir: v2Data.terroir,
             vine_age: v2Data.vineAge_years || v2Data.vine_age,

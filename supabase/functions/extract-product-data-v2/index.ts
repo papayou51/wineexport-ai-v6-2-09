@@ -120,9 +120,9 @@ serve(async (req) => {
         type: "object",
         additionalProperties: false,
         properties: {
-          name: { anyOf: [{ type: "string", minLength: 1 }, { type: "null" }] },
-          category: { anyOf: [{ type: "string" }, { type: "null" }] },
-          appellation: { anyOf: [{ type: "string", minLength: 2 }, { type: "null" }] },
+          name: { anyOf: [{ type: "string", minLength: 1, pattern: "^(?!null$|n/a$|—$|nd$|na$)" }, { type: "null" }] },
+          category: { anyOf: [{ type: "string", pattern: "^(?!null$|n/a$|—$)" }, { type: "null" }] },
+          appellation: { anyOf: [{ type: "string", minLength: 2, pattern: "^(?!null$|n/a$|—$)" }, { type: "null" }] },
           region: { anyOf: [{ type: "string" }, { type: "null" }] },
           country: { anyOf: [{ type: "string" }, { type: "null" }] },
           color: { anyOf: [{ type: "string" }, { type: "null" }] },

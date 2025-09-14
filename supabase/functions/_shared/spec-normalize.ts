@@ -77,13 +77,28 @@ function toBool(v: any): boolean | null {
   return null;
 }
 
+function sanitizeString(v: any): string | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v !== "string") return v;
+  
+  // Convert null-like strings to actual null
+  const cleaned = v.trim();
+  if (!cleaned || 
+      /^(null|n\/a|n\.a\.|—|–|-|non renseigné|non spécifié|non disponible|inconnu|nd|na)$/i.test(cleaned)) {
+    return null;
+  }
+  
+  return cleaned;
+}
+
 export function normalizeSpec(raw: ProductSpec): ProductSpec {
-  // 1) Preserve ALL fields from ChatGPT - minimal filtering for 100% extraction
+  // 1) Sanitize and preserve fields from ChatGPT - remove null-like strings
   const pruned: ProductSpec = {};
   for (const [k, v] of Object.entries(raw || {})) {
     // Accept all known fields + common variations 
     const key = ALLOWED.has(k) ? k : (ALIASES[k] ?? k); // Keep unknown fields as-is
-    if (v !== null && v !== undefined && v !== "") pruned[key] = v; // Only filter truly empty values
+    const sanitized = sanitizeString(v);
+    if (sanitized !== null) pruned[key] = sanitized; // Only keep non-null values
   }
 
   // 2) coercitions usuelles
