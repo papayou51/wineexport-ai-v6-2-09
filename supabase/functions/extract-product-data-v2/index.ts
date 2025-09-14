@@ -170,6 +170,15 @@ serve(async (req) => {
               { type: "null" }
             ]
           },
+          terroir: { anyOf: [{ type: "string" }, { type: "null" }] },
+          vine_age: { anyOf: [{ type: "number" }, { type: "null" }] },
+          yield_hl_ha: { anyOf: [{ type: "number" }, { type: "null" }] },
+          vinification: { anyOf: [{ type: "string" }, { type: "null" }] },
+          aging_details: { anyOf: [{ type: "string" }, { type: "null" }] },
+          bottling_info: { anyOf: [{ type: "string" }, { type: "null" }] },
+          ean_code: { anyOf: [{ type: "string" }, { type: "null" }] },
+          packaging_info: { anyOf: [{ type: "string" }, { type: "null" }] },
+          availability: { anyOf: [{ type: "string" }, { type: "null" }] },
           citations: {
             type: "object",
             additionalProperties: false,
@@ -184,11 +193,20 @@ serve(async (req) => {
               volume_ml: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
               grapes: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
               tasting_notes: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
-              technical_specs: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } }
+              technical_specs: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
+              terroir: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
+              vine_age: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
+              yield_hl_ha: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
+              vinification: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
+              aging_details: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
+              bottling_info: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
+              ean_code: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
+              packaging_info: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
+              availability: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } }
             }
           }
         },
-        required: ["name", "appellation", "region", "country", "color", "vintage", "alcohol_percentage", "volume_ml", "grapes", "tasting_notes", "technical_specs", "producer_contact", "certifications", "awards", "citations"]
+        required: ["name", "appellation", "region", "country", "color", "vintage", "alcohol_percentage", "volume_ml", "grapes", "tasting_notes", "technical_specs", "producer_contact", "certifications", "awards", "terroir", "vine_age", "yield_hl_ha", "vinification", "aging_details", "bottling_info", "ean_code", "packaging_info", "availability", "citations"]
       },
       strict: true
     } as const;
@@ -290,7 +308,7 @@ Exigences:
 - country par défaut "France" uniquement si le document est manifestement français, sinon null.
 
 Sortie: retourner UNIQUEMENT un JSON valide (pas de texte avant/après) avec des clés en snake_case cohérentes avec:
-{name, appellation, region, country, color, vintage, alcohol_percentage, volume_ml, grapes, tasting_notes, technical_specs, producer_contact, certifications, awards, citations}.`,
+{name, appellation, region, country, color, vintage, alcohol_percentage, volume_ml, grapes, tasting_notes, technical_specs, producer_contact, certifications, awards, terroir, vine_age, yield_hl_ha, vinification, aging_details, bottling_info, ean_code, packaging_info, availability, citations}.`,
           attachments: [
             {
               file_id: fileUpload.id,
@@ -511,6 +529,13 @@ Sortie: retourner UNIQUEMENT un JSON valide (pas de texte avant/après) avec des
         const c = (normalized as any)?.citations || {};
         const counts = Object.fromEntries(Object.entries(c).map(([k, v]) => [k, Array.isArray(v) ? (v as any[]).length : 0]));
         console.log('🔎 Citations per field:', counts);
+      } catch (_e) {}
+
+      // Log terroir fields presence for monitoring
+      try {
+        const terroir_fields = ['terroir', 'vine_age', 'yield_hl_ha', 'vinification', 'aging_details', 'bottling_info', 'ean_code', 'packaging_info', 'availability'];
+        const terroir_presence = Object.fromEntries(terroir_fields.map(f => [f, (normalized as any)?.[f] ? '✓' : '✗']));
+        console.log('🌿 Terroir & Production fields:', terroir_presence);
       } catch (_e) {}
 
       // Enforce evidence-backed critical fields
