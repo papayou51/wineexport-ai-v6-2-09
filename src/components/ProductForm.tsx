@@ -68,6 +68,16 @@ export const ProductForm = ({
     onSuccess?.(createdProduct);
   };
 
+  // Check if we have meaningful data extracted
+  const hasExploitableData = initialData && (
+    initialData.name || 
+    initialData.description || 
+    initialData.tasting_notes || 
+    initialData.appellation || 
+    initialData.vintage || 
+    initialData.alcohol_percentage
+  );
+
   if (!initialData) {
     return (
       <div className="space-y-6 animate-fade-in">
@@ -128,16 +138,26 @@ export const ProductForm = ({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Basic Information */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <h3 className="text-lg font-semibold text-primary">{initialData.name}</h3>
-              {initialData.category && (
-                <Badge variant="secondary">
-                  {categoryLabels[initialData.category] || initialData.category}
-                </Badge>
-              )}
+          {!hasExploitableData && (
+            <div className="text-center py-8 space-y-3">
+              <div className="text-4xl">🤔</div>
+              <div className="text-muted-foreground">
+                <p className="font-medium">Aucune donnée exploitable extraite par l'IA</p>
+                <p className="text-sm">Le modèle n'a pas pu identifier d'informations structurées dans ce document.</p>
+              </div>
             </div>
+          )}
+          {/* Basic Information - Only show if we have exploitable data */}
+          {hasExploitableData && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                {initialData.name && <h3 className="text-lg font-semibold text-primary">{initialData.name}</h3>}
+                {initialData.category && (
+                  <Badge variant="secondary">
+                    {categoryLabels[initialData.category] || initialData.category}
+                  </Badge>
+                )}
+              </div>
 
             {/* Key Details Grid */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -166,7 +186,8 @@ export const ProductForm = ({
                 </div>
               )}
             </div>
-          </div>
+            </div>
+          )}
 
           {/* Description */}
           {initialData.description && (
@@ -259,17 +280,19 @@ export const ProductForm = ({
             </>
           )}
 
-          {/* Create Product Button */}
-          <div className="pt-4">
-            <Button 
-              onClick={handleCreateProduct}
-              disabled={createMutation.isPending}
-              className="w-full"
-              size="lg"
-            >
-              {createMutation.isPending ? "Création en cours..." : "Créer le produit"}
-            </Button>
-          </div>
+          {/* Create Product Button - Only show if we have meaningful data */}
+          {hasExploitableData && (
+            <div className="pt-4">
+              <Button 
+                onClick={handleCreateProduct}
+                disabled={createMutation.isPending}
+                className="w-full"
+                size="lg"
+              >
+                {createMutation.isPending ? "Création en cours..." : "Créer le produit"}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

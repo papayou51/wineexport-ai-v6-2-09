@@ -166,18 +166,14 @@ export const useExtractProductData = () => {
         ...data,
         extractedData: {
           ...spec,
-          name: spec.name || spec.productName || [
-            spec.producer || spec.brand,
-            appStr,
-            spec.vintage || spec.year,
-            spec.color || spec.type
-          ].filter(Boolean).join(" ") || "Produit sans nom",
+          // Strict ChatGPT mapping - only display what was actually extracted
+          name: spec.name || spec.productName || null,
           vintage: spec.vintage || spec.year || null,
           // Keep both for downstream mappers
           abv_percent: spec.abv_percent ?? spec.alcohol ?? spec.alcohol_percentage ?? null,
           alcohol_percentage: spec.alcohol_percentage ?? spec.abv_percent ?? spec.alcohol ?? null,
           volume_ml: spec.volume_ml || (
-            /(\d{3,4})\s?m?l/i.test(spec.volume || '') ? parseInt(RegExp.$1) : 750
+            /(\d{3,4})\s?m?l/i.test(spec.volume || '') ? parseInt(RegExp.$1) : null
           ),
           appellation: appStr,
           tastingNotes: Array.isArray(spec.tastingNotes)
