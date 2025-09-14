@@ -4,202 +4,39 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.0";
 import { ProductExtractionSchema, PRODUCT_EXTRACTION_PROMPT } from "../_shared/ai-orchestrator/schemas/product-extraction.ts";
 import { normalizeSpec } from "../_shared/spec-normalize.ts";
 import { computeQuality } from "../_shared/ai-orchestrator/quality.ts";
-import { PDFExtractor } from "../_shared/pdf-extractor.ts";
-import { ocrFallbackFromPdf } from "../_shared/ocr.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Citation verification system
-interface Citation {
-  page: number;
-  evidence: string;
-}
-
-interface ExtractedPDFText {
-  text: string;
-  success: boolean;
-  source: 'pdf-extractor' | 'ocr';
-}
-
-async function extractPDFText(pdfBuffer: ArrayBuffer, fileName: string): Promise<ExtractedPDFText> {
-  console.log('=== EXTRACTING PDF TEXT FOR VERIFICATION ===');
+// Basic validation helper for sanity checks
+function validateBasicFields(spec: any): { spec: any, validationLog: Record<string, string> } {
+  const log: Record<string, string> = {};
   
-  // Try PDF text extraction first
-  try {
-    const pdfResult = PDFExtractor.extractText(pdfBuffer, fileName);
-    if (pdfResult.text.length > 100) {
-      console.log(`✅ PDF text extracted: ${pdfResult.text.length} characters`);
-      return {
-        text: pdfResult.text,
-        success: true,
-        source: 'pdf-extractor'
-      };
-    }
-  } catch (error) {
-    console.warn('PDF text extraction failed:', error);
+  // Basic sanity checks without strict citation requirements
+  if (spec.vintage && (typeof spec.vintage !== 'number' || spec.vintage < 1900 || spec.vintage > 2100)) {
+    spec.vintage = null;
+    log.vintage = "✗ (invalid range: must be 1900-2100)";
+  } else if (spec.vintage) {
+    log.vintage = "✓ (valid range)";
   }
-
-  // Fallback to OCR
-  try {
-    console.log('📸 Falling back to OCR...');
-    const ocrPages = await ocrFallbackFromPdf(pdfBuffer);
-    const ocrText = ocrPages.map(p => p.text).join('\n');
-    
-    if (ocrText.length > 50) {
-      console.log(`✅ OCR text extracted: ${ocrText.length} characters`);
-      return {
-        text: ocrText,
-        success: true,
-        source: 'ocr'
-      };
-    }
-  } catch (error) {
-    console.warn('OCR extraction failed:', error);
-  }
-
-  return {
-    text: '',
-    success: false,
-    source: 'pdf-extractor'
-  };
-}
-
-function verifyCitation(citation: Citation, pdfText: string): boolean {
-  if (!citation.evidence || citation.evidence.length < 3) return false;
   
-  // Normalize both texts for comparison
-  const normalizeText = (text: string) => text
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .replace(/[^\w\sàáâãäåæçèéêëìíîïñòóôõöøùúûüý]/gi, ' ')
-    .trim();
-
-  const normalizedEvidence = normalizeText(citation.evidence);
-  const normalizedPdfText = normalizeText(pdfText);
-
-  // Check if the evidence appears in the PDF text
-  return normalizedPdfText.includes(normalizedEvidence);
-}
-
-function verifySpecialFields(fieldName: string, value: any, citations: Citation[], pdfText: string): boolean {
-  if (!citations || citations.length === 0) return false;
-
-  const normalizedPdfText = pdfText.toLowerCase();
-
-  switch (fieldName) {
-    case 'vintage':
-      // Vintage must be explicitly mentioned with keywords like "millésime", "vintage", or year patterns
-      const vintageKeywords = ['millésime', 'vintage', 'année', 'récolte'];
-      const hasVintageKeyword = vintageKeywords.some(keyword => 
-        citations.some(c => c.evidence.toLowerCase().includes(keyword))
-      );
-      
-      // Also check if the year appears with vintage-related context
-      const yearInContext = citations.some(c => {
-        const evidence = c.evidence.toLowerCase();
-        return evidence.includes(String(value)) && (
-          vintageKeywords.some(kw => evidence.includes(kw)) ||
-          evidence.includes('20' + String(value).slice(-2)) // e.g., "2021"
-        );
-      });
-
-      return hasVintageKeyword || yearInContext;
-
-    case 'alcohol_percentage':
-      // Must have % or vol or alcohol-related terms
-      return citations.some(c => {
-        const evidence = c.evidence.toLowerCase();
-        return (evidence.includes('%') || evidence.includes('vol') || evidence.includes('alcool') || evidence.includes('alcohol')) &&
-               evidence.includes(String(value).replace('.', ',')) || evidence.includes(String(value));
-      });
-
-    case 'volume_ml':
-      // Must have volume indicators (ml, cl, l, etc.)
-      return citations.some(c => {
-        const evidence = c.evidence.toLowerCase();
-        return (evidence.includes('ml') || evidence.includes('cl') || evidence.includes(' l ') || 
-                evidence.includes('litre') || evidence.includes('centilitre') || evidence.includes('millilitre'));
-      });
-
-    case 'appellation':
-      // Must have appellation-related terms
-      const appellationKeywords = ['aop', 'aoc', 'igp', 'vdp', 'appellation', 'indication'];
-      return citations.some(c => {
-        const evidence = c.evidence.toLowerCase();
-        return appellationKeywords.some(kw => evidence.includes(kw));
-      });
-
-    default:
-      return true; // For other fields, basic citation verification is enough
+  if (spec.alcohol_percentage && (typeof spec.alcohol_percentage !== 'number' || spec.alcohol_percentage < 5 || spec.alcohol_percentage > 25)) {
+    spec.alcohol_percentage = null;
+    log.alcohol_percentage = "✗ (invalid range: must be 5-25%)";
+  } else if (spec.alcohol_percentage) {
+    log.alcohol_percentage = "✓ (valid range)";
   }
-}
-
-function verifyCitationsAndNullifyFields(rawSpec: any, pdfText: string): { spec: any, verificationLog: Record<string, string> } {
-  const verificationLog: Record<string, string> = {};
-  const verifiedSpec = { ...rawSpec };
-
-  // Fields that require strict verification
-  const strictFields = [
-    'name', 'appellation', 'region', 'country', 'color', 'vintage', 'alcohol_percentage', 
-    'volume_ml', 'grapes', 'tasting_notes', 'terroir', 'vine_age', 'yield_hl_ha', 
-    'vinification', 'aging_details', 'bottling_info', 'ean_code', 'packaging_info', 'availability'
-  ];
-
-  for (const field of strictFields) {
-    const value = verifiedSpec[field];
-    const citations = rawSpec.citations?.[field] || [];
-
-    if (value === null || value === undefined) {
-      verificationLog[field] = '✓ (null)';
-      continue;
-    }
-
-    // Check if citations exist and are verifiable
-    let verified = false;
-
-    if (citations.length > 0) {
-      // Verify each citation
-      const validCitations = citations.filter((citation: Citation) => 
-        verifyCitation(citation, pdfText)
-      );
-
-      if (validCitations.length > 0) {
-        // Additional verification for special fields
-        if (['vintage', 'alcohol_percentage', 'volume_ml', 'appellation'].includes(field)) {
-          verified = verifySpecialFields(field, value, validCitations, pdfText);
-        } else {
-          verified = true;
-        }
-      }
-    }
-
-    if (!verified) {
-      verifiedSpec[field] = null;
-      verificationLog[field] = '✗ (citation unverified)';
-    } else {
-      verificationLog[field] = '✓ (verified)';
-    }
+  
+  if (spec.volume_ml && (typeof spec.volume_ml !== 'number' || spec.volume_ml < 50 || spec.volume_ml > 4000)) {
+    spec.volume_ml = null;
+    log.volume_ml = "✗ (invalid range: must be 50-4000ml)";
+  } else if (spec.volume_ml) {
+    log.volume_ml = "✓ (valid range)";
   }
-
-  // Handle technical_specs - nullify if no valid citations
-  if (verifiedSpec.technical_specs && typeof verifiedSpec.technical_specs === 'object') {
-    const techCitations = rawSpec.citations?.technical_specs || [];
-    const validTechCitations = techCitations.filter((citation: Citation) => 
-      verifyCitation(citation, pdfText)
-    );
-
-    if (validTechCitations.length === 0) {
-      verifiedSpec.technical_specs = null;
-      verificationLog.technical_specs = '✗ (no valid citations)';
-    } else {
-      verificationLog.technical_specs = '✓ (verified)';
-    }
-  }
-
-  return { spec: verifiedSpec, verificationLog };
+  
+  return { spec, validationLog: log };
 }
 
 serve(async (req) => {
@@ -249,10 +86,6 @@ serve(async (req) => {
     const pdfBuffer = await pdfResponse.arrayBuffer();
     console.log(`PDF downloaded successfully: ${Math.round(pdfBuffer.byteLength / 1024)}KB`);
 
-    // Extract PDF text for citation verification
-    const pdfTextResult = await extractPDFText(pdfBuffer, fileName);
-    console.log(`📝 PDF text extraction: ${pdfTextResult.success ? 'SUCCESS' : 'FAILED'} (${pdfTextResult.source})`);
-
     // 2) Upload PDF to OpenAI Files API
     console.log('Uploading PDF to OpenAI Files API...');
     const formData = new FormData();
@@ -280,7 +113,7 @@ serve(async (req) => {
     let assistantId: string | null = null;
     let threadId: string | null = null;
 
-    // JSON schema for OpenAI Structured Outputs (strict mode)
+    // JSON schema for OpenAI Structured Outputs (strict mode) - simplified without citations
     const PRODUCT_JSON_SCHEMA = {
       name: "product_spec",
       schema: {
@@ -288,6 +121,7 @@ serve(async (req) => {
         additionalProperties: false,
         properties: {
           name: { anyOf: [{ type: "string", minLength: 1 }, { type: "null" }] },
+          category: { anyOf: [{ type: "string" }, { type: "null" }] },
           appellation: { anyOf: [{ type: "string", minLength: 2 }, { type: "null" }] },
           region: { anyOf: [{ type: "string" }, { type: "null" }] },
           country: { anyOf: [{ type: "string" }, { type: "null" }] },
@@ -374,104 +208,80 @@ serve(async (req) => {
           bottling_info: { anyOf: [{ type: "string" }, { type: "null" }] },
           ean_code: { anyOf: [{ type: "string" }, { type: "null" }] },
           packaging_info: { anyOf: [{ type: "string" }, { type: "null" }] },
-          availability: { anyOf: [{ type: "string" }, { type: "null" }] },
-          citations: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              name: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
-              appellation: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
-              region: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
-              country: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
-              color: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
-              vintage: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
-              alcohol_percentage: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
-              volume_ml: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
-              grapes: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
-              tasting_notes: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
-              technical_specs: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
-              terroir: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
-              vine_age: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
-              yield_hl_ha: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
-              vinification: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
-              aging_details: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
-              bottling_info: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
-              ean_code: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
-              packaging_info: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } },
-              availability: { type: "array", items: { type: "object", additionalProperties: false, properties: { page: { type: "integer", minimum: 1 }, evidence: { type: "string" } }, required: ["page", "evidence"] } }
-            }
-          }
+          availability: { anyOf: [{ type: "string" }, { type: "null" }] }
         },
-        required: ["name", "appellation", "region", "country", "color", "vintage", "alcohol_percentage", "volume_ml", "grapes", "tasting_notes", "technical_specs", "producer_contact", "certifications", "awards", "terroir", "vine_age", "yield_hl_ha", "vinification", "aging_details", "bottling_info", "ean_code", "packaging_info", "availability", "citations"]
+        required: []
       },
       strict: true
-    } as const;
+    };
+
+    // Compatible models for OpenAI Assistants API with file search
+    const COMPATIBLE_MODELS = [
+      'gpt-4.1-2025-04-14',
+      'gpt-4o-2024-08-06',
+      'gpt-4o-mini-2024-07-18',
+      'gpt-4-turbo',
+      'gpt-4'
+    ];
+
     try {
-      // 3) Create assistant with compatible Assistants models (fallback)
-      const candidateModels = [
-        "gpt-4.1-2025-04-14",
-        "o4-mini-2025-04-16",
-        "gpt-4o-mini"
-      ];
+      // 3) Create Assistant
       let modelUsed: string | null = null;
+      let assistantCreated = false;
 
-      for (const m of candidateModels) {
-        console.log('Creating assistant with model:', m);
-        const resp = await fetch('https://api.openai.com/v1/assistants', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${openaiApiKey}`,
-            'Content-Type': 'application/json',
-            'OpenAI-Beta': 'assistants=v2',
-          },
-          body: JSON.stringify({
-            name: 'Expert French Wine Technical Sheet Analyzer',
-            instructions: PRODUCT_EXTRACTION_PROMPT,
-            model: m,
-            tools: [{ type: 'file_search' }],
-          }),
-        });
+      for (const model of COMPATIBLE_MODELS) {
+        try {
+          console.log('Creating assistant with model:', model);
+          const assistantResponse = await fetch('https://api.openai.com/v1/assistants', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${openaiApiKey}`,
+              'Content-Type': 'application/json',
+              'OpenAI-Beta': 'assistants=v2'
+            },
+            body: JSON.stringify({
+              name: `Wine Extractor ${Date.now()}`,
+              instructions: PRODUCT_EXTRACTION_PROMPT,
+              model: model,
+              tools: [{ type: 'file_search' }],
+            })
+          });
 
-        if (resp.ok) {
-          const assistant = await resp.json();
+          if (!assistantResponse.ok) {
+            const error = await assistantResponse.text();
+            console.warn(`❌ Model ${model} failed:`, error);
+            continue;
+          }
+
+          const assistant = await assistantResponse.json();
           assistantId = assistant.id;
-          modelUsed = m;
-          console.log('Assistant created:', assistantId, 'with model:', modelUsed);
+          modelUsed = model;
+          assistantCreated = true;
+          console.log('Assistant created:', assistantId, 'with model:', model);
           break;
-        } else {
-          const errText = await resp.text();
-          console.error('Failed to create assistant with', m, ':', errText);
-          try {
-            const errJson = JSON.parse(errText);
-            const code = errJson?.error?.code;
-            const message = errJson?.error?.message || '';
-            if (code === 'unsupported_model' || message.includes('cannot be used with the Assistants API')) {
-              continue; // try next model
-            }
-          } catch (_e) {}
-          throw new Error(`Assistant Creation Error: ${errText}`);
+
+        } catch (e: any) {
+          console.warn(`❌ Model ${model} error:`, e.message);
+          continue;
         }
       }
 
-      if (!assistantId || !modelUsed) {
-        throw new Error('NO_SUPPORTED_ASSISTANTS_MODEL: Aucun modèle compatible avec l’API Assistants n’a été trouvé.');
+      if (!assistantCreated || !assistantId) {
+        throw new Error('Failed to create assistant with any compatible model');
       }
 
-      // 4) Create thread
+      // 4) Create Thread
       const threadResponse = await fetch('https://api.openai.com/v1/threads', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${openaiApiKey}`,
           'Content-Type': 'application/json',
-          'OpenAI-Beta': 'assistants=v2',
-        },
-        body: JSON.stringify({}),
+          'OpenAI-Beta': 'assistants=v2'
+        }
       });
 
       if (!threadResponse.ok) {
-        const threadError = await threadResponse.text();
-        console.error('Failed to create thread:', threadError);
-        throw new Error(`Thread Creation Error: ${threadError}`);
+        throw new Error(`Failed to create thread: ${await threadResponse.text()}`);
       }
 
       const thread = await threadResponse.json();
@@ -479,349 +289,174 @@ serve(async (req) => {
       console.log('Thread created:', threadId);
 
       // 5) Add message with file
-      const messageResponse = await fetch(`https://api.openai.com/v1/threads/${threadId}/messages`, {
+      await fetch(`https://api.openai.com/v1/threads/${threadId}/messages`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${openaiApiKey}`,
           'Content-Type': 'application/json',
-          'OpenAI-Beta': 'assistants=v2',
+          'OpenAI-Beta': 'assistants=v2'
         },
         body: JSON.stringify({
           role: 'user',
-          content: `Extraction structurée de fiche technique PDF.
-
-Exigences STRICTES:
-- RÈGLE ABSOLUE: Ne JAMAIS inventer, estimer ou déduire. Si une information n'est pas explicitement écrite dans le PDF, mettre null.
-- Citations OBLIGATOIRES: pour chaque champ non-null, fournir "citations" avec {page, evidence} où "evidence" est l'extrait exact mot-pour-mot du PDF.
-- VÉRIFICATION AUTOMATIQUE: Chaque citation sera automatiquement vérifiée contre le texte extrait du PDF. Les champs avec citations non-vérifiables seront mis à null.
-- INTERDICTION TOTALE d'utiliser le nom de fichier comme source de données.
-- Millésime: entier [1900..2100] UNIQUEMENT si explicitement mentionné avec des mots-clés comme "Millésime", "Vintage", "Année" + année (ex: "Millésime 2021"). Sinon null.
-- Appellation: AOP/AOC/IGP/VDP/etc. UNIQUEMENT si explicitement mentionnée avec ces termes dans le PDF. Sinon null.
-- Degré alcool: nombre [5..25], convertir "13,5%" -> 13.5. UNIQUEMENT si explicite avec %, vol, alcool. Sinon null.
-- Volume: en millilitres (ml). UNIQUEMENT si explicitement indiqué avec ml, cl, l, litre. Sinon null.
-- Grapes/Cépages: UNIQUEMENT si listés dans le PDF.
-- Tasting notes: UNIQUEMENT le texte exact du PDF, pas d'invention.
-- technical_specs: UNIQUEMENT si pH, acidité, SO2, etc. sont explicitement mentionnés.
-- country: UNIQUEMENT si explicitement mentionné dans le PDF. Sinon null.
-- Terroir & Production: UNIQUEMENT remplir si les informations sont explicitement présentes dans le PDF.
-
-IMPORTANT: Toutes les citations seront vérifiées automatiquement. Si l'evidence n'est pas trouvée dans le PDF, le champ sera mis à null.
-
-Sortie: retourner UNIQUEMENT un JSON valide (pas de texte avant/après) avec des clés en snake_case cohérentes avec:
-{name, appellation, region, country, color, vintage, alcohol_percentage, volume_ml, grapes, tasting_notes, technical_specs, producer_contact, certifications, awards, terroir, vine_age, yield_hl_ha, vinification, aging_details, bottling_info, ean_code, packaging_info, availability, citations}.`,
+          content: 'Analyse ce document PDF et extrais toutes les informations du produit selon les instructions.',
           attachments: [
             {
               file_id: fileUpload.id,
-              tools: [{ type: 'file_search' }],
-            },
-          ],
-        }),
+              tools: [{ type: 'file_search' }]
+            }
+          ]
+        })
       });
 
-      if (!messageResponse.ok) {
-        const messageError = await messageResponse.text();
-        console.error('Failed to create message:', messageError);
-        throw new Error(`Message Creation Error: ${messageError}`);
-      }
+      // 6) Create run with structured output (try strict mode first)
+      let runResponse: Response;
+      let useStrictMode = true;
 
-      // 6) Run assistant with fallback for schema issues
-      let runResponse;
-      let useStrictSchema = true;
-      
       try {
         runResponse = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${openaiApiKey}`,
             'Content-Type': 'application/json',
-            'OpenAI-Beta': 'assistants=v2',
+            'OpenAI-Beta': 'assistants=v2'
           },
           body: JSON.stringify({
             assistant_id: assistantId,
-            response_format: { type: 'json_schema', json_schema: PRODUCT_JSON_SCHEMA },
-          }),
+            response_format: {
+              type: 'json_schema',
+              json_schema: PRODUCT_JSON_SCHEMA
+            }
+          })
         });
-        
-        // If schema is rejected, try fallback without strict mode
+
         if (!runResponse.ok) {
           const errorText = await runResponse.text();
-          if (errorText.includes('additionalProperties') || errorText.includes('invalid_json_schema')) {
+          if (errorText.includes('invalid_json_schema') || errorText.includes('additionalProperties')) {
             console.log('⚠️ Strict schema rejected, falling back to non-strict mode');
-            useStrictSchema = false;
-            
-            const fallbackSchema = { ...PRODUCT_JSON_SCHEMA };
-            fallbackSchema.strict = false;
-            
-            runResponse = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${openaiApiKey}`,
-                'Content-Type': 'application/json',
-                'OpenAI-Beta': 'assistants=v2',
-              },
-              body: JSON.stringify({
-                assistant_id: assistantId,
-                response_format: { type: 'json_schema', json_schema: fallbackSchema },
-              }),
-            });
+            useStrictMode = false;
+          } else {
+            throw new Error(`Failed to create run: ${errorText}`);
           }
         }
-      } catch (schemaError: any) {
-        console.error('Schema error, trying without structured output:', schemaError);
-        useStrictSchema = false;
-        
+      } catch (e: any) {
+        console.log('⚠️ Strict schema rejected, falling back to non-strict mode');
+        useStrictMode = false;
+      }
+
+      // Fallback to non-strict mode if needed
+      if (!useStrictMode) {
         runResponse = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${openaiApiKey}`,
             'Content-Type': 'application/json',
-            'OpenAI-Beta': 'assistants=v2',
+            'OpenAI-Beta': 'assistants=v2'
           },
           body: JSON.stringify({
             assistant_id: assistantId,
-          }),
+            instructions: PRODUCT_EXTRACTION_PROMPT + "\n\nRETURNER UNIQUEMENT un JSON valide.",
+          })
         });
-      }
 
-      if (!runResponse.ok) {
-        const runError = await runResponse.text();
-        console.error('Failed to start run:', runError);
-        throw new Error(`Run Start Error: ${runError}`);
+        if (!runResponse.ok) {
+          throw new Error(`Failed to create non-strict run: ${await runResponse.text()}`);
+        }
       }
 
       const run = await runResponse.json();
       console.log('Run started:', run.id);
 
-      // 7) Wait for completion
+      // 7) Poll for completion
       let runStatus = run.status;
       let attempts = 0;
-      const maxAttempts = 90; // 90 seconds max for complex PDFs
+      const maxAttempts = 60; // 60 seconds timeout
 
-      while (runStatus === 'queued' || runStatus === 'in_progress') {
-        if (attempts >= maxAttempts) {
-          throw new Error('Assistant run timeout after 90 seconds');
-        }
-        
-        await new Promise(resolve => setTimeout(resolve, 1000));
+      while (runStatus === 'in_progress' || runStatus === 'queued') {
         attempts++;
+        if (attempts > maxAttempts) {
+          throw new Error('Run timeout after 60 seconds');
+        }
 
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
         const statusResponse = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs/${run.id}`, {
           headers: {
             'Authorization': `Bearer ${openaiApiKey}`,
-            'OpenAI-Beta': 'assistants=v2',
-          },
+            'OpenAI-Beta': 'assistants=v2'
+          }
         });
 
-        if (statusResponse.ok) {
-          const statusData = await statusResponse.json();
-          runStatus = statusData.status;
-          console.log(`Run status: ${runStatus} (${attempts}s)`);
-        }
+        const statusData = await statusResponse.json();
+        runStatus = statusData.status;
+        console.log(`Run status: ${runStatus} (${attempts}s)`);
       }
 
       if (runStatus !== 'completed') {
-        throw new Error(`Assistant run failed with status: ${runStatus}`);
+        throw new Error(`Run failed with status: ${runStatus}`);
       }
 
-      // 8) Get response
+      console.log(`Run status: ${runStatus} (${attempts}s)`);
+
+      // 8) Get messages
       const messagesResponse = await fetch(`https://api.openai.com/v1/threads/${threadId}/messages`, {
         headers: {
           'Authorization': `Bearer ${openaiApiKey}`,
-          'OpenAI-Beta': 'assistants=v2',
-        },
+          'OpenAI-Beta': 'assistants=v2'
+        }
       });
 
-      if (!messagesResponse.ok) {
-        throw new Error('Failed to get messages');
+      const messagesData = await messagesResponse.json();
+      const lastMessage = messagesData.data?.[0];
+
+      if (!lastMessage || !lastMessage.content?.[0]?.text?.value) {
+        throw new Error('No response received from assistant');
       }
 
-      const messages = await messagesResponse.json();
-      const assistantMessage = messages.data.find((msg: any) => msg.role === 'assistant');
-      
-      if (!assistantMessage || !assistantMessage.content?.[0]?.text?.value) {
-        throw new Error('No response from assistant');
-      }
+      const responseText = lastMessage.content[0].text.value;
+      console.log('Assistant response received, length:', responseText.length);
 
-      const rawResponse = assistantMessage.content[0].text.value;
-      console.log('Assistant response received, length:', rawResponse.length);
-
-      // 9) Parse JSON response with robust fallback
-      let extractedData;
+      // 9) Parse JSON response
+      let rawSpec: any;
       try {
-        // Clean response to extract JSON
-        let cleanResponse = rawResponse.trim();
-        
-        // Check if response starts with French text (error case)
-        const lowerResponse = cleanResponse.toLowerCase();
-        if (lowerResponse.startsWith('je ne peux') || 
-            lowerResponse.startsWith('aucune') || 
-            lowerResponse.startsWith('désolé') ||
-            lowerResponse.includes('impossible') ||
-            !cleanResponse.includes('{')) {
-          console.warn('⚠️ Assistant returned French text instead of JSON, using fallback');
-          console.log('Non-JSON response:', rawResponse.substring(0, 200));
-          
-          // Return minimal valid JSON structure - no default values
-          extractedData = {
-            name: null,
-            producer: null,
-            appellation: null,
-            region: null,
-            country: null,
-            color: null,
-            vintage: null,
-            alcohol_percentage: null,
-            volume_ml: null,
-            grapes: null,
-            tasting_notes: null,
-            technical_specs: null,
-            terroir: null,
-            vine_age: null,
-            yield_hl_ha: null,
-            vinification: null,
-            aging_details: null,
-            bottling_info: null,
-            ean_code: null,
-            packaging_info: null,
-            availability: null,
-            producer_contact: null,
-            awards: null,
-            citations: null
-          };
-        } else {
-          // Find JSON boundaries
-          const jsonStart = cleanResponse.indexOf('{');
-          const jsonEnd = cleanResponse.lastIndexOf('}');
-          
-          if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
-            cleanResponse = cleanResponse.slice(jsonStart, jsonEnd + 1);
-          }
-          
-          extractedData = JSON.parse(cleanResponse);
-        }
-        
+        rawSpec = JSON.parse(responseText);
         console.log('✅ Successfully processed response');
-      } catch (parseError) {
-        console.error('❌ JSON parsing failed:', parseError);
-        console.log('Raw response sample:', rawResponse.substring(0, 300));
+      } catch (parseError: any) {
+        console.error('Failed to parse JSON response:', parseError);
         
-        // Fallback to minimal structure instead of throwing - no default values
-        console.warn('⚠️ Using fallback JSON structure due to parsing error');
-        extractedData = {
-          name: null,
-          producer: null,
-          appellation: null,
-          region: null,
-          country: null,
-          color: null,
-          vintage: null,
-          alcohol_percentage: null,
-          volume_ml: null,
-          grapes: null,
-          tasting_notes: null,
-          technical_specs: null,
-          terroir: null,
-          vine_age: null,
-          yield_hl_ha: null,
-          vinification: null,
-          aging_details: null,
-          bottling_info: null,
-          ean_code: null,
-          packaging_info: null,
-          availability: null,
-          producer_contact: null,
-          awards: null,
-          citations: null
-        };
-      }
-
-      // 10) Apply citation verification against PDF text
-      let normalized = normalizeSpec(extractedData);
-      console.log('✅ Spec normalized');
-
-      // Log citations count for monitoring
-      try {
-        const c = (normalized as any)?.citations || {};
-        const counts = Object.fromEntries(Object.entries(c).map(([k, v]) => [k, Array.isArray(v) ? (v as any[]).length : 0]));
-        console.log('🔎 Citations per field:', counts);
-      } catch (_e) {}
-
-      // Apply strict citation verification against PDF text
-      let verificationLog: Record<string, string> = {};
-      
-      if (pdfTextResult.success && pdfTextResult.text) {
-        console.log('=== CITATION VERIFICATION ===');
-        const verificationResult = verifyCitationsAndNullifyFields(normalized, pdfTextResult.text);
-        normalized = verificationResult.spec;
-        verificationLog = verificationResult.verificationLog;
-        
-        const nullifiedFields = Object.entries(verificationLog).filter(([_, status]) => status.includes('✗')).map(([field]) => field);
-        console.log(`🚫 ${nullifiedFields.length} fields nullified due to unverified citations: ${nullifiedFields.join(', ')}`);
-        console.log('📊 Verification results:', verificationLog);
-      } else {
-        console.warn('⚠️ PDF text extraction failed, skipping citation verification');
-        // Still apply basic citation presence check as fallback
-        const evidenceRequiredFields = [
-          'name', 'vintage', 'alcohol_percentage', 'volume_ml', 'appellation', 'region', 'country', 
-          'color', 'grapes', 'tasting_notes', 'terroir', 'vine_age', 'yield_hl_ha', 'vinification', 
-          'aging_details', 'bottling_info', 'ean_code', 'packaging_info', 'availability'
-        ];
-        
-        const hasCitation = (field: string) => {
+        // Try to extract JSON from markdown or mixed content
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
           try {
-            const c = (normalized as any)?.citations?.[field];
-            return Array.isArray(c) && c.length > 0;
-          } catch { return false; }
-        };
-
-        let nullifiedCount = 0;
-        for (const f of evidenceRequiredFields) {
-          if (!hasCitation(f) && (normalized as any)[f] !== null) {
-            (normalized as any)[f] = null;
-            nullifiedCount++;
+            rawSpec = JSON.parse(jsonMatch[0]);
+            console.log('✅ Extracted JSON from mixed content');
+          } catch (e2) {
+            throw new Error(`Failed to parse extracted JSON: ${e2.message}`);
           }
+        } else {
+          throw new Error(`Invalid JSON response from OpenAI: ${parseError.message}`);
         }
-
-        // Nullify technical_specs if no citations
-        if (!hasCitation('technical_specs') && (normalized as any).technical_specs) {
-          (normalized as any).technical_specs = null;
-          nullifiedCount++;
-        }
-
-        console.log(`🚫 ${nullifiedCount} fields nullified due to missing citations`);
       }
 
-      // Log terroir fields presence for monitoring
+      // 9) Normalize & validate extracted data
+      const normalized = normalizeSpec(rawSpec);
+      console.log('✅ Spec normalized');
+      
+      // Apply basic sanity checks (ChatGPT mode) 
+      const { spec: finalSpec, validationLog } = validateBasicFields(normalized);
+      
+      console.log(`📊 Basic validation results: ${JSON.stringify(validationLog, null, 2)}`);
+
+      // 10) Validate with Zod schema
+      let validated = finalSpec;
       try {
-        const terroir_fields = ['terroir', 'vine_age', 'yield_hl_ha', 'vinification', 'aging_details', 'bottling_info', 'ean_code', 'packaging_info', 'availability'];
-        const terroir_presence = Object.fromEntries(terroir_fields.map(f => [f, (normalized as any)?.[f] ? '✓' : '✗']));
-        console.log('🌿 Terroir & Production fields:', terroir_presence);
-      } catch (_e) {}
-      // Sanity constraints
-      const v = (normalized as any).vintage;
-      if (typeof v === 'number' && (v < 1900 || v > 2100)) (normalized as any).vintage = null;
-
-      const abv = (normalized as any).alcohol_percentage ?? (normalized as any).abv_percent;
-      if (typeof abv === 'number') {
-        if (abv < 5 || abv > 25) (normalized as any).alcohol_percentage = null;
-        else (normalized as any).alcohol_percentage = abv;
-      }
-
-      const vol = (normalized as any).volume_ml;
-      if (typeof vol === 'number') {
-        if (vol < 50 || vol > 4000) (normalized as any).volume_ml = null;
-      }
-
-      let validated = normalized;
-      try {
-        validated = ProductExtractionSchema.parse(normalized);
+        validated = ProductExtractionSchema.parse(finalSpec);
         console.log('✅ Zod validation passed');
       } catch (e: any) {
         console.warn('⚠️ Zod validation failed, using normalized data:', e?.issues?.[0]?.message);
       }
 
       // 11) Compute quality
-      const quality = computeQuality(validated, { citations: (validated as any).citations });
+      const quality = computeQuality(validated, {});
       console.log(`📊 Quality computed: ${quality}%`);
 
       // 12) Save to database
@@ -882,26 +517,30 @@ Sortie: retourner UNIQUEMENT un JSON valide (pas de texte avant/après) avec des
       const cleanupPromises = [];
       
       // Delete file
-      cleanupPromises.push(
-        fetch(`https://api.openai.com/v1/files/${fileUpload.id}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${openaiApiKey}` },
-        }).catch(e => console.error('File cleanup failed:', e))
-      );
-      
+      if (fileUpload?.id) {
+        cleanupPromises.push(
+          fetch(`https://api.openai.com/v1/files/${fileUpload.id}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${openaiApiKey}`,
+            }
+          }).catch(e => console.warn('File cleanup failed:', e))
+        );
+      }
+
       // Delete assistant
       if (assistantId) {
         cleanupPromises.push(
           fetch(`https://api.openai.com/v1/assistants/${assistantId}`, {
             method: 'DELETE',
-            headers: { 
+            headers: {
               'Authorization': `Bearer ${openaiApiKey}`,
-              'OpenAI-Beta': 'assistants=v2',
-            },
-          }).catch(e => console.error('Assistant cleanup failed:', e))
+              'OpenAI-Beta': 'assistants=v2'
+            }
+          }).catch(e => console.warn('Assistant cleanup failed:', e))
         );
       }
-      
+
       await Promise.all(cleanupPromises);
       console.log('Cleanup completed');
     }
