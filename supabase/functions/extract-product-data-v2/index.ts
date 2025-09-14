@@ -294,18 +294,19 @@ serve(async (req) => {
           role: 'user',
           content: `Extraction structurée de fiche technique (PDF: ${fileName}).
 
-Exigences:
-- Ne JAMAIS inventer ni déduire. Si une information n'est pas explicitement lisible dans le PDF, mettre null.
-- Citer les sources: remplir "citations" avec, pour chaque champ extrait, une liste d'objets {page, evidence} où "evidence" est un court extrait textuel exact.
-- Interdire l'usage du nom de fichier comme source; ne jamais le citer dans "citations".
-- Millésime: entier [1900..2100] uniquement si clairement présent (p. ex. "Millésime 2021"). Sinon null.
-- Appellation: AOP/AOC/IGP/VDP/etc. uniquement si explicitement mentionnée. Sinon null.
-- Degré alcool (% vol): nombre [5..25], convertir "13,5%" -> 13.5. Sinon null.
-- Volume: en millilitres (ml). Si plusieurs formats, choisir 750 si explicitement indiqué; sinon null.
-- Grapes/Cépages: liste de chaînes; séparer par virgule/puces.
-- Tasting notes/notes de dégustation: texte exact; pas d'invention.
-- technical_specs: inclure pH, acidité totale, SO2, sucre résiduel, élevage, etc. si présents.
-- country par défaut "France" uniquement si le document est manifestement français, sinon null.
+Exigences STRICTES:
+- RÈGLE ABSOLUE: Ne JAMAIS inventer, estimer ou déduire. Si une information n'est pas explicitement écrite dans le PDF, mettre null.
+- Citations OBLIGATOIRES: pour chaque champ non-null, fournir "citations" avec {page, evidence} où "evidence" est l'extrait exact du PDF.
+- INTERDICTION TOTALE d'utiliser le nom de fichier comme source de données.
+- Millésime: entier [1900..2100] UNIQUEMENT si explicitement mentionné dans le PDF (ex: "Millésime 2021"). Sinon null.
+- Appellation: AOP/AOC/IGP/VDP/etc. UNIQUEMENT si explicitement mentionnée dans le PDF. Sinon null.
+- Degré alcool: nombre [5..25], convertir "13,5%" -> 13.5. UNIQUEMENT si explicite dans le PDF. Sinon null.
+- Volume: en millilitres (ml). UNIQUEMENT si explicitement indiqué dans le PDF. Sinon null.
+- Grapes/Cépages: UNIQUEMENT si listés dans le PDF.
+- Tasting notes: UNIQUEMENT le texte exact du PDF, pas d'invention.
+- technical_specs: UNIQUEMENT si pH, acidité, SO2, etc. sont explicitement mentionnés.
+- country: UNIQUEMENT si explicitement mentionné dans le PDF. Sinon null.
+- Terroir & Production: UNIQUEMENT remplir si les informations sont explicitement présentes dans le PDF.
 
 Sortie: retourner UNIQUEMENT un JSON valide (pas de texte avant/après) avec des clés en snake_case cohérentes avec:
 {name, appellation, region, country, color, vintage, alcohol_percentage, volume_ml, grapes, tasting_notes, technical_specs, producer_contact, certifications, awards, terroir, vine_age, yield_hl_ha, vinification, aging_details, bottling_info, ean_code, packaging_info, availability, citations}.`,
@@ -461,25 +462,32 @@ Sortie: retourner UNIQUEMENT un JSON valide (pas de texte avant/après) avec des
           console.warn('⚠️ Assistant returned French text instead of JSON, using fallback');
           console.log('Non-JSON response:', rawResponse.substring(0, 200));
           
-          // Return minimal valid JSON structure
+          // Return minimal valid JSON structure - no default values
           extractedData = {
-            productName: null,
+            name: null,
             producer: null,
-            brand: null,
             appellation: null,
             region: null,
-            country: "France",
+            country: null,
             color: null,
             vintage: null,
+            alcohol_percentage: null,
+            volume_ml: null,
             grapes: null,
-            abv_percent: null,
-            volume_ml: 750,
-            tastingNotes: null,
-            foodPairing: null,
-            servingTemp_C: null,
-            ageingPotential_years: null,
-            organicCert: null,
-            awards: null
+            tasting_notes: null,
+            technical_specs: null,
+            terroir: null,
+            vine_age: null,
+            yield_hl_ha: null,
+            vinification: null,
+            aging_details: null,
+            bottling_info: null,
+            ean_code: null,
+            packaging_info: null,
+            availability: null,
+            producer_contact: null,
+            awards: null,
+            citations: null
           };
         } else {
           // Find JSON boundaries
@@ -498,26 +506,33 @@ Sortie: retourner UNIQUEMENT un JSON valide (pas de texte avant/après) avec des
         console.error('❌ JSON parsing failed:', parseError);
         console.log('Raw response sample:', rawResponse.substring(0, 300));
         
-        // Fallback to minimal structure instead of throwing
+        // Fallback to minimal structure instead of throwing - no default values
         console.warn('⚠️ Using fallback JSON structure due to parsing error');
         extractedData = {
-          productName: null,
+          name: null,
           producer: null,
-          brand: null,
           appellation: null,
           region: null,
-          country: "France",
+          country: null,
           color: null,
           vintage: null,
+          alcohol_percentage: null,
+          volume_ml: null,
           grapes: null,
-          abv_percent: null,
-          volume_ml: 750,
-          tastingNotes: null,
-          foodPairing: null,
-          servingTemp_C: null,
-          ageingPotential_years: null,
-          organicCert: null,
-          awards: null
+          tasting_notes: null,
+          technical_specs: null,
+          terroir: null,
+          vine_age: null,
+          yield_hl_ha: null,
+          vinification: null,
+          aging_details: null,
+          bottling_info: null,
+          ean_code: null,
+          packaging_info: null,
+          availability: null,
+          producer_contact: null,
+          awards: null,
+          citations: null
         };
       }
 
@@ -538,8 +553,13 @@ Sortie: retourner UNIQUEMENT un JSON valide (pas de texte avant/après) avec des
         console.log('🌿 Terroir & Production fields:', terroir_presence);
       } catch (_e) {}
 
-      // Enforce evidence-backed critical fields
-      const criticalFields = ['vintage', 'alcohol_percentage', 'volume_ml', 'appellation'];
+      // Enforce evidence-backed fields (extended to almost all fields)
+      const evidenceRequiredFields = [
+        'name', 'vintage', 'alcohol_percentage', 'volume_ml', 'appellation', 'region', 'country', 
+        'color', 'grapes', 'tasting_notes', 'terroir', 'vine_age', 'yield_hl_ha', 'vinification', 
+        'aging_details', 'bottling_info', 'ean_code', 'packaging_info', 'availability'
+      ];
+      
       const hasCitation = (field: string) => {
         try {
           const c = (normalized as any)?.citations?.[field];
@@ -547,11 +567,27 @@ Sortie: retourner UNIQUEMENT un JSON valide (pas de texte avant/après) avec des
         } catch { return false; }
       };
 
-      for (const f of criticalFields) {
-        if (!hasCitation(f)) {
+      let nullifiedCount = 0;
+      for (const f of evidenceRequiredFields) {
+        if (!hasCitation(f) && (normalized as any)[f] !== null) {
           (normalized as any)[f] = null;
+          nullifiedCount++;
         }
       }
+
+      // Nullify technical_specs if no citations
+      if (!hasCitation('technical_specs') && (normalized as any).technical_specs) {
+        (normalized as any).technical_specs = null;
+        nullifiedCount++;
+      }
+
+      // Nullify producer_contact if no citations
+      if (!hasCitation('producer_contact') && (normalized as any).producer_contact) {
+        (normalized as any).producer_contact = null;
+        nullifiedCount++;
+      }
+
+      console.log(`🚫 ${nullifiedCount} fields nullified due to missing citations`);
 
       // Sanity constraints
       const v = (normalized as any).vintage;
