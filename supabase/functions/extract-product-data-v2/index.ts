@@ -4,11 +4,203 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.0";
 import { ProductExtractionSchema, PRODUCT_EXTRACTION_PROMPT } from "../_shared/ai-orchestrator/schemas/product-extraction.ts";
 import { normalizeSpec } from "../_shared/spec-normalize.ts";
 import { computeQuality } from "../_shared/ai-orchestrator/quality.ts";
+import { PDFExtractor } from "../_shared/pdf-extractor.ts";
+import { ocrFallbackFromPdf } from "../_shared/ocr.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Citation verification system
+interface Citation {
+  page: number;
+  evidence: string;
+}
+
+interface ExtractedPDFText {
+  text: string;
+  success: boolean;
+  source: 'pdf-extractor' | 'ocr';
+}
+
+async function extractPDFText(pdfBuffer: ArrayBuffer, fileName: string): Promise<ExtractedPDFText> {
+  console.log('=== EXTRACTING PDF TEXT FOR VERIFICATION ===');
+  
+  // Try PDF text extraction first
+  try {
+    const pdfResult = PDFExtractor.extractText(pdfBuffer, fileName);
+    if (pdfResult.text.length > 100) {
+      console.log(`✅ PDF text extracted: ${pdfResult.text.length} characters`);
+      return {
+        text: pdfResult.text,
+        success: true,
+        source: 'pdf-extractor'
+      };
+    }
+  } catch (error) {
+    console.warn('PDF text extraction failed:', error);
+  }
+
+  // Fallback to OCR
+  try {
+    console.log('📸 Falling back to OCR...');
+    const ocrPages = await ocrFallbackFromPdf(pdfBuffer);
+    const ocrText = ocrPages.map(p => p.text).join('\n');
+    
+    if (ocrText.length > 50) {
+      console.log(`✅ OCR text extracted: ${ocrText.length} characters`);
+      return {
+        text: ocrText,
+        success: true,
+        source: 'ocr'
+      };
+    }
+  } catch (error) {
+    console.warn('OCR extraction failed:', error);
+  }
+
+  return {
+    text: '',
+    success: false,
+    source: 'pdf-extractor'
+  };
+}
+
+function verifyCitation(citation: Citation, pdfText: string): boolean {
+  if (!citation.evidence || citation.evidence.length < 3) return false;
+  
+  // Normalize both texts for comparison
+  const normalizeText = (text: string) => text
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/[^\w\sàáâãäåæçèéêëìíîïñòóôõöøùúûüý]/gi, ' ')
+    .trim();
+
+  const normalizedEvidence = normalizeText(citation.evidence);
+  const normalizedPdfText = normalizeText(pdfText);
+
+  // Check if the evidence appears in the PDF text
+  return normalizedPdfText.includes(normalizedEvidence);
+}
+
+function verifySpecialFields(fieldName: string, value: any, citations: Citation[], pdfText: string): boolean {
+  if (!citations || citations.length === 0) return false;
+
+  const normalizedPdfText = pdfText.toLowerCase();
+
+  switch (fieldName) {
+    case 'vintage':
+      // Vintage must be explicitly mentioned with keywords like "millésime", "vintage", or year patterns
+      const vintageKeywords = ['millésime', 'vintage', 'année', 'récolte'];
+      const hasVintageKeyword = vintageKeywords.some(keyword => 
+        citations.some(c => c.evidence.toLowerCase().includes(keyword))
+      );
+      
+      // Also check if the year appears with vintage-related context
+      const yearInContext = citations.some(c => {
+        const evidence = c.evidence.toLowerCase();
+        return evidence.includes(String(value)) && (
+          vintageKeywords.some(kw => evidence.includes(kw)) ||
+          evidence.includes('20' + String(value).slice(-2)) // e.g., "2021"
+        );
+      });
+
+      return hasVintageKeyword || yearInContext;
+
+    case 'alcohol_percentage':
+      // Must have % or vol or alcohol-related terms
+      return citations.some(c => {
+        const evidence = c.evidence.toLowerCase();
+        return (evidence.includes('%') || evidence.includes('vol') || evidence.includes('alcool') || evidence.includes('alcohol')) &&
+               evidence.includes(String(value).replace('.', ',')) || evidence.includes(String(value));
+      });
+
+    case 'volume_ml':
+      // Must have volume indicators (ml, cl, l, etc.)
+      return citations.some(c => {
+        const evidence = c.evidence.toLowerCase();
+        return (evidence.includes('ml') || evidence.includes('cl') || evidence.includes(' l ') || 
+                evidence.includes('litre') || evidence.includes('centilitre') || evidence.includes('millilitre'));
+      });
+
+    case 'appellation':
+      // Must have appellation-related terms
+      const appellationKeywords = ['aop', 'aoc', 'igp', 'vdp', 'appellation', 'indication'];
+      return citations.some(c => {
+        const evidence = c.evidence.toLowerCase();
+        return appellationKeywords.some(kw => evidence.includes(kw));
+      });
+
+    default:
+      return true; // For other fields, basic citation verification is enough
+  }
+}
+
+function verifyCitationsAndNullifyFields(rawSpec: any, pdfText: string): { spec: any, verificationLog: Record<string, string> } {
+  const verificationLog: Record<string, string> = {};
+  const verifiedSpec = { ...rawSpec };
+
+  // Fields that require strict verification
+  const strictFields = [
+    'name', 'appellation', 'region', 'country', 'color', 'vintage', 'alcohol_percentage', 
+    'volume_ml', 'grapes', 'tasting_notes', 'terroir', 'vine_age', 'yield_hl_ha', 
+    'vinification', 'aging_details', 'bottling_info', 'ean_code', 'packaging_info', 'availability'
+  ];
+
+  for (const field of strictFields) {
+    const value = verifiedSpec[field];
+    const citations = rawSpec.citations?.[field] || [];
+
+    if (value === null || value === undefined) {
+      verificationLog[field] = '✓ (null)';
+      continue;
+    }
+
+    // Check if citations exist and are verifiable
+    let verified = false;
+
+    if (citations.length > 0) {
+      // Verify each citation
+      const validCitations = citations.filter((citation: Citation) => 
+        verifyCitation(citation, pdfText)
+      );
+
+      if (validCitations.length > 0) {
+        // Additional verification for special fields
+        if (['vintage', 'alcohol_percentage', 'volume_ml', 'appellation'].includes(field)) {
+          verified = verifySpecialFields(field, value, validCitations, pdfText);
+        } else {
+          verified = true;
+        }
+      }
+    }
+
+    if (!verified) {
+      verifiedSpec[field] = null;
+      verificationLog[field] = '✗ (citation unverified)';
+    } else {
+      verificationLog[field] = '✓ (verified)';
+    }
+  }
+
+  // Handle technical_specs - nullify if no valid citations
+  if (verifiedSpec.technical_specs && typeof verifiedSpec.technical_specs === 'object') {
+    const techCitations = rawSpec.citations?.technical_specs || [];
+    const validTechCitations = techCitations.filter((citation: Citation) => 
+      verifyCitation(citation, pdfText)
+    );
+
+    if (validTechCitations.length === 0) {
+      verifiedSpec.technical_specs = null;
+      verificationLog.technical_specs = '✗ (no valid citations)';
+    } else {
+      verificationLog.technical_specs = '✓ (verified)';
+    }
+  }
+
+  return { spec: verifiedSpec, verificationLog };
+}
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -56,6 +248,10 @@ serve(async (req) => {
 
     const pdfBuffer = await pdfResponse.arrayBuffer();
     console.log(`PDF downloaded successfully: ${Math.round(pdfBuffer.byteLength / 1024)}KB`);
+
+    // Extract PDF text for citation verification
+    const pdfTextResult = await extractPDFText(pdfBuffer, fileName);
+    console.log(`📝 PDF text extraction: ${pdfTextResult.success ? 'SUCCESS' : 'FAILED'} (${pdfTextResult.source})`);
 
     // 2) Upload PDF to OpenAI Files API
     console.log('Uploading PDF to OpenAI Files API...');
@@ -292,21 +488,24 @@ serve(async (req) => {
         },
         body: JSON.stringify({
           role: 'user',
-          content: `Extraction structurée de fiche technique (PDF: ${fileName}).
+          content: `Extraction structurée de fiche technique PDF.
 
 Exigences STRICTES:
 - RÈGLE ABSOLUE: Ne JAMAIS inventer, estimer ou déduire. Si une information n'est pas explicitement écrite dans le PDF, mettre null.
-- Citations OBLIGATOIRES: pour chaque champ non-null, fournir "citations" avec {page, evidence} où "evidence" est l'extrait exact du PDF.
+- Citations OBLIGATOIRES: pour chaque champ non-null, fournir "citations" avec {page, evidence} où "evidence" est l'extrait exact mot-pour-mot du PDF.
+- VÉRIFICATION AUTOMATIQUE: Chaque citation sera automatiquement vérifiée contre le texte extrait du PDF. Les champs avec citations non-vérifiables seront mis à null.
 - INTERDICTION TOTALE d'utiliser le nom de fichier comme source de données.
-- Millésime: entier [1900..2100] UNIQUEMENT si explicitement mentionné dans le PDF (ex: "Millésime 2021"). Sinon null.
-- Appellation: AOP/AOC/IGP/VDP/etc. UNIQUEMENT si explicitement mentionnée dans le PDF. Sinon null.
-- Degré alcool: nombre [5..25], convertir "13,5%" -> 13.5. UNIQUEMENT si explicite dans le PDF. Sinon null.
-- Volume: en millilitres (ml). UNIQUEMENT si explicitement indiqué dans le PDF. Sinon null.
+- Millésime: entier [1900..2100] UNIQUEMENT si explicitement mentionné avec des mots-clés comme "Millésime", "Vintage", "Année" + année (ex: "Millésime 2021"). Sinon null.
+- Appellation: AOP/AOC/IGP/VDP/etc. UNIQUEMENT si explicitement mentionnée avec ces termes dans le PDF. Sinon null.
+- Degré alcool: nombre [5..25], convertir "13,5%" -> 13.5. UNIQUEMENT si explicite avec %, vol, alcool. Sinon null.
+- Volume: en millilitres (ml). UNIQUEMENT si explicitement indiqué avec ml, cl, l, litre. Sinon null.
 - Grapes/Cépages: UNIQUEMENT si listés dans le PDF.
 - Tasting notes: UNIQUEMENT le texte exact du PDF, pas d'invention.
 - technical_specs: UNIQUEMENT si pH, acidité, SO2, etc. sont explicitement mentionnés.
 - country: UNIQUEMENT si explicitement mentionné dans le PDF. Sinon null.
 - Terroir & Production: UNIQUEMENT remplir si les informations sont explicitement présentes dans le PDF.
+
+IMPORTANT: Toutes les citations seront vérifiées automatiquement. Si l'evidence n'est pas trouvée dans le PDF, le champ sera mis à null.
 
 Sortie: retourner UNIQUEMENT un JSON valide (pas de texte avant/après) avec des clés en snake_case cohérentes avec:
 {name, appellation, region, country, color, vintage, alcohol_percentage, volume_ml, grapes, tasting_notes, technical_specs, producer_contact, certifications, awards, terroir, vine_age, yield_hl_ha, vinification, aging_details, bottling_info, ean_code, packaging_info, availability, citations}.`,
@@ -536,9 +735,10 @@ Sortie: retourner UNIQUEMENT un JSON valide (pas de texte avant/après) avec des
         };
       }
 
-      // 10) Normalize, enforce citations and sanity checks
+      // 10) Apply citation verification against PDF text
       let normalized = normalizeSpec(extractedData);
       console.log('✅ Spec normalized');
+
       // Log citations count for monitoring
       try {
         const c = (normalized as any)?.citations || {};
@@ -546,49 +746,57 @@ Sortie: retourner UNIQUEMENT un JSON valide (pas de texte avant/après) avec des
         console.log('🔎 Citations per field:', counts);
       } catch (_e) {}
 
+      // Apply strict citation verification against PDF text
+      let verificationLog: Record<string, string> = {};
+      
+      if (pdfTextResult.success && pdfTextResult.text) {
+        console.log('=== CITATION VERIFICATION ===');
+        const verificationResult = verifyCitationsAndNullifyFields(normalized, pdfTextResult.text);
+        normalized = verificationResult.spec;
+        verificationLog = verificationResult.verificationLog;
+        
+        const nullifiedFields = Object.entries(verificationLog).filter(([_, status]) => status.includes('✗')).map(([field]) => field);
+        console.log(`🚫 ${nullifiedFields.length} fields nullified due to unverified citations: ${nullifiedFields.join(', ')}`);
+        console.log('📊 Verification results:', verificationLog);
+      } else {
+        console.warn('⚠️ PDF text extraction failed, skipping citation verification');
+        // Still apply basic citation presence check as fallback
+        const evidenceRequiredFields = [
+          'name', 'vintage', 'alcohol_percentage', 'volume_ml', 'appellation', 'region', 'country', 
+          'color', 'grapes', 'tasting_notes', 'terroir', 'vine_age', 'yield_hl_ha', 'vinification', 
+          'aging_details', 'bottling_info', 'ean_code', 'packaging_info', 'availability'
+        ];
+        
+        const hasCitation = (field: string) => {
+          try {
+            const c = (normalized as any)?.citations?.[field];
+            return Array.isArray(c) && c.length > 0;
+          } catch { return false; }
+        };
+
+        let nullifiedCount = 0;
+        for (const f of evidenceRequiredFields) {
+          if (!hasCitation(f) && (normalized as any)[f] !== null) {
+            (normalized as any)[f] = null;
+            nullifiedCount++;
+          }
+        }
+
+        // Nullify technical_specs if no citations
+        if (!hasCitation('technical_specs') && (normalized as any).technical_specs) {
+          (normalized as any).technical_specs = null;
+          nullifiedCount++;
+        }
+
+        console.log(`🚫 ${nullifiedCount} fields nullified due to missing citations`);
+      }
+
       // Log terroir fields presence for monitoring
       try {
         const terroir_fields = ['terroir', 'vine_age', 'yield_hl_ha', 'vinification', 'aging_details', 'bottling_info', 'ean_code', 'packaging_info', 'availability'];
         const terroir_presence = Object.fromEntries(terroir_fields.map(f => [f, (normalized as any)?.[f] ? '✓' : '✗']));
         console.log('🌿 Terroir & Production fields:', terroir_presence);
       } catch (_e) {}
-
-      // Enforce evidence-backed fields (extended to almost all fields)
-      const evidenceRequiredFields = [
-        'name', 'vintage', 'alcohol_percentage', 'volume_ml', 'appellation', 'region', 'country', 
-        'color', 'grapes', 'tasting_notes', 'terroir', 'vine_age', 'yield_hl_ha', 'vinification', 
-        'aging_details', 'bottling_info', 'ean_code', 'packaging_info', 'availability'
-      ];
-      
-      const hasCitation = (field: string) => {
-        try {
-          const c = (normalized as any)?.citations?.[field];
-          return Array.isArray(c) && c.length > 0;
-        } catch { return false; }
-      };
-
-      let nullifiedCount = 0;
-      for (const f of evidenceRequiredFields) {
-        if (!hasCitation(f) && (normalized as any)[f] !== null) {
-          (normalized as any)[f] = null;
-          nullifiedCount++;
-        }
-      }
-
-      // Nullify technical_specs if no citations
-      if (!hasCitation('technical_specs') && (normalized as any).technical_specs) {
-        (normalized as any).technical_specs = null;
-        nullifiedCount++;
-      }
-
-      // Nullify producer_contact if no citations
-      if (!hasCitation('producer_contact') && (normalized as any).producer_contact) {
-        (normalized as any).producer_contact = null;
-        nullifiedCount++;
-      }
-
-      console.log(`🚫 ${nullifiedCount} fields nullified due to missing citations`);
-
       // Sanity constraints
       const v = (normalized as any).vintage;
       if (typeof v === 'number' && (v < 1900 || v > 2100)) (normalized as any).vintage = null;
