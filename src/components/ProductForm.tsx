@@ -189,6 +189,25 @@ export const ProductForm = ({
             </div>
           )}
 
+          {/* Sources Section - Show where data came from */}
+          {hasExploitableData && initialData.citations && (
+            <div className="space-y-2 bg-blue-50 p-4 rounded-lg">
+              <h4 className="font-semibold text-blue-800 flex items-center gap-2">
+                📋 Sources vérifiées
+              </h4>
+              <div className="text-xs text-blue-600 space-y-1">
+                {Object.entries(initialData.citations).map(([field, citations]: [string, any]) => (
+                  Array.isArray(citations) && citations.length > 0 && (
+                    <div key={field} className="flex gap-2">
+                      <span className="font-medium min-w-20">{field}:</span>
+                      <span>Page {citations[0].page} - "{citations[0].evidence?.substring(0, 60)}..."</span>
+                    </div>
+                  )
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Description */}
           {initialData.description && (
             <div className="space-y-2">

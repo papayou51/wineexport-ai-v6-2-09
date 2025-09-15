@@ -26,6 +26,8 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
   const [lastError, setLastError] = useState<string>('');
   const [extractionResult, setExtractionResult] = useState<{ data: ProductData; text: string; metadata?: any } | null>(null);
   const [fallbackContext, setFallbackContext] = useState<any>(null);
+  const [processedFileName, setProcessedFileName] = useState<string>('');
+  const [validationReport, setValidationReport] = useState<any>(null);
 
   const uploadMutation = useUploadProductFile();
   const extractMutation = useExtractProductData();
@@ -107,6 +109,10 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
             extractionVersion: 'V2'
           }
         });
+        
+        // Store validation info for UI display
+        setProcessedFileName(extractResult.metadata?.filename || uploadResult.fileName);
+        setValidationReport(extractResult.metadata?.validationReport);
 
         // Track successful extraction with provider info
         await trackProductWorkflow('data_extraction', undefined, undefined, {
@@ -251,6 +257,16 @@ const transformV2ToProductData = (v2Data: any) => {
         const extractionType = extractResult.metadata?.extractionType || 'v2_extraction';
         const fallbackContext = extractResult.metadata?.fallbackContext;
         
+        // Check for hallucination detection
+        const droppedFields = extractResult.metadata?.validationReport?.droppedFields || 0;
+        if (droppedFields > 0) {
+          toast({
+            title: "🚨 Hallucination détectée",
+            description: `${droppedFields} champs sans preuves ont été supprimés. Seules les données vérifiables sont affichées.`,
+            variant: "destructive",
+          });
+        }
+
         // Enhanced V2 quality-based feedback with troubleshooting
         if (backendQualityScore < 15) {
           let description = `🚀 Extraction V2 - Qualité: ${backendQualityScore}%.`;

@@ -43,8 +43,13 @@ export function computeQuality(spec: any, meta?: {citations?: Record<string, num
   
   const consistencyScore = consistency.reduce((a, b) => a + b, 0) / consistency.length;
 
-  // Check for citations (indicates AI actually read the document)
-  const hasCitations = meta?.citations && Object.keys(meta.citations).length > 0 ? 1 : 0;
+  // Check for citations (indicates AI actually read the document) - CRITICAL for quality
+  const citations = meta?.citations || {};
+  const citationFields = Object.keys(citations);
+  const hasCitations = citationFields.length > 0 ? 1 : 0;
+  
+  // Penalty for lack of evidence - severely penalize extractions without citations
+  const citationPenalty = hasCitations === 0 ? 0.7 : 0; // Reduce score by 70% if no citations
 
   // Adaptive weighting based on provider availability and quota constraints
   const activeProviders = meta?.providers?.filter(p => p.ok).length ?? 1;
@@ -81,12 +86,23 @@ export function computeQuality(spec: any, meta?: {citations?: Record<string, num
   const completionRate = filledFields / totalFields;
   if (completionRate > 0.6) bonusScore += 0.05; // Bonus for comprehensive extraction
   
-  // Weighted combination - adjusted for higher baseline scores
-  const wCoverage = 0.55;      // Was 0.60 - Data completeness
-  const wConsistency = 0.20;   // Data validity  
-  const wBonus = 0.25;         // Was 0.20 - Wine-specific quality bonus (increased further)
+  // Citation-based quality enhancement
+  const citationBonus = hasCitations > 0 ? 0.1 : 0; // Bonus for having evidence
+  
+  // Weighted combination - heavily penalize lack of evidence
+  const wCoverage = 0.45;      // Reduced - Data completeness
+  const wConsistency = 0.15;   // Data validity  
+  const wBonus = 0.20;         // Wine-specific quality bonus
+  const wCitation = 0.20;      // NEW - Citation quality weight
 
-  const finalScore = Math.min(1.0, wCoverage * coverage + wConsistency * consistencyScore + wBonus * bonusScore);
+  let finalScore = wCoverage * coverage + wConsistency * consistencyScore + wBonus * bonusScore + wCitation * (hasCitations + citationBonus);
+  
+  // Apply citation penalty - NO citations = maximum 20% score
+  if (hasCitations === 0) {
+    finalScore = Math.min(finalScore - citationPenalty, 0.2);
+  }
+  
+  finalScore = Math.min(1.0, finalScore);
   
   return Math.round(100 * finalScore);
 }

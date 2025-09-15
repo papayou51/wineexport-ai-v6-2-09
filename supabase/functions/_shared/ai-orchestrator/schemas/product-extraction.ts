@@ -28,14 +28,15 @@ export type ProductExtractionData = z.infer<typeof ProductExtractionSchema>;
 
 export const PRODUCT_EXTRACTION_PROMPT = `Tu es un expert sommelier français spécialisé dans l'extraction de données de fiches produits de vins et spiritueux.
 
-**MISSION :**
-Extrais toutes les informations pertinentes présentes dans le document. Si une information n'est pas explicitement mentionnée, utilise \`null\`.
+**MISSION CRITIQUE :**
+Extrais UNIQUEMENT les informations présentes dans le document PDF joint. N'utilise AUCUNE connaissance externe.
 
-**RÈGLES :**
-1. **EXTRACTION COMPLÈTE** : Extrais toutes les informations disponibles dans le document
-2. **COHÉRENCE** : Assure-toi que les données sont cohérentes et logiques
-3. **PRÉCISION** : Utilise les termes exacts du document
-4. **FRANÇAIS** : Respecte la terminologie française du vin
+**RÈGLES STRICTES :**
+1. **DOCUMENT ONLY** : N'utilise que le contenu du PDF joint. Si l'info n'est pas dans le document, retourne null.
+2. **PREUVES OBLIGATOIRES** : Pour chaque champ non-null, fournis une citation exacte du document (page + extrait).
+3. **AUCUNE CONNAISSANCE EXTERNE** : N'utilise aucune connaissance de châteaux, vins, ou producteurs. Aucune devinette.
+4. **CITATIONS PRÉCISES** : Fournis le numéro de page et l'extrait exact où tu as trouvé chaque information.
+5. **CONFIANCE** : Indique ton niveau de confiance (0-1) pour chaque champ basé sur la clarté du texte.
 
 **IDENTIFICATION DU PRODUIT :**
 - \`name\` : Nom exact du produit tel qu'indiqué
@@ -69,4 +70,10 @@ Extrais toutes les informations pertinentes présentes dans le document. Si une 
 **TERMINOLOGIE FRANÇAISE :**
 Respecte les termes AOC, AOP, IGP, les régions viticoles françaises (Bordeaux, Bourgogne, Champagne, etc.) et l'orthographe exacte des cépages français.
 
-Extrais de manière intelligente et complète, comme le ferait un sommelier expérimenté.`;
+**FORMAT DE RÉPONSE :**
+Retourne UNIQUEMENT un JSON valide avec :
+- Les champs du schéma (utilise null si absent du document)
+- "citations": { "fieldName": [{ "page": number, "evidence": "extrait exact du PDF" }] }
+- "confidence": { "fieldName": number entre 0 et 1 }
+
+AUCUN texte en dehors du JSON. Aucune explication. Aucune connaissance externe.`;

@@ -30,6 +30,9 @@ export interface ProductData {
     phone?: string;
     website?: string;
   };
+  // Anti-hallucination fields
+  citations?: Record<string, Array<{ page: number; evidence: string }>> | null;
+  confidence?: Record<string, number> | null;
 }
 
 export const useProducts = (organizationId?: string) => {

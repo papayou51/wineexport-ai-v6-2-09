@@ -4,6 +4,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.0";
 import { ProductExtractionSchema, PRODUCT_EXTRACTION_PROMPT } from "../_shared/ai-orchestrator/schemas/product-extraction.ts";
 import { normalizeSpec } from "../_shared/spec-normalize.ts";
 import { computeQuality } from "../_shared/ai-orchestrator/quality.ts";
+import { PDFExtractor } from "../_shared/pdf-extractor.ts";
+import { verifyEvidence } from "./evidence-verification.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -44,6 +46,8 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const extractionStart = Date.now();
 
   try {
     const body = await req.json();
@@ -113,7 +117,7 @@ serve(async (req) => {
     let assistantId: string | null = null;
     let threadId: string | null = null;
 
-    // JSON schema for OpenAI Structured Outputs (strict mode) - simplified without citations
+    // JSON schema for OpenAI Structured Outputs (strict mode) - WITH citations and confidence
     const PRODUCT_JSON_SCHEMA = {
       name: "product_spec",
       schema: {
@@ -208,9 +212,32 @@ serve(async (req) => {
           bottling_info: { anyOf: [{ type: "string" }, { type: "null" }] },
           ean_code: { anyOf: [{ type: "string" }, { type: "null" }] },
           packaging_info: { anyOf: [{ type: "string" }, { type: "null" }] },
-          availability: { anyOf: [{ type: "string" }, { type: "null" }] }
+          availability: { anyOf: [{ type: "string" }, { type: "null" }] },
+          citations: {
+            type: "object",
+            additionalProperties: {
+              type: "array",
+              items: {
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  page: { type: "integer", minimum: 1 },
+                  evidence: { type: "string", minLength: 5 }
+                },
+                required: ["page", "evidence"]
+              }
+            }
+          },
+          confidence: {
+            type: "object",
+            additionalProperties: {
+              type: "number",
+              minimum: 0,
+              maximum: 1
+            }
+          }
         },
-        required: []
+        required: ["citations", "confidence"]
       },
       strict: true
     };
@@ -415,7 +442,13 @@ serve(async (req) => {
       const responseText = lastMessage.content[0].text.value;
       console.log('Assistant response received, length:', responseText.length);
 
-      // 9) Parse JSON response
+      // 9) Extract PDF text for evidence verification
+      console.log('📄 Extracting PDF text for evidence verification...');
+      const pdfExtractionResult = PDFExtractor.extractText(pdfBuffer, fileName);
+      const pdfText = pdfExtractionResult.text.toLowerCase();
+      console.log(`📄 PDF text extracted: ${pdfExtractionResult.length} chars, strategies: ${pdfExtractionResult.extractionStrategies.join(', ')}`);
+
+      // 10) Parse JSON response
       let rawSpec: any;
       try {
         rawSpec = JSON.parse(responseText);
@@ -437,8 +470,13 @@ serve(async (req) => {
         }
       }
 
-      // 9) Normalize & validate extracted data
-      const normalized = normalizeSpec(rawSpec);
+      // 11) Evidence verification - Remove fields without valid citations
+      console.log('🔍 Starting evidence verification...');
+      const { extractedData: verifiedSpec, validationReport } = verifyEvidence(rawSpec, pdfText, fileName);
+      console.log(`🔍 Evidence verification completed: ${validationReport.keptFields} kept, ${validationReport.droppedFields} dropped`);
+
+      // 12) Normalize & validate extracted data
+      const normalized = normalizeSpec(verifiedSpec);
       console.log('✅ Spec normalized');
       
       // Apply basic sanity checks (ChatGPT mode) 
@@ -446,7 +484,7 @@ serve(async (req) => {
       
       console.log(`📊 Basic validation results: ${JSON.stringify(validationLog, null, 2)}`);
 
-      // 10) Validate with Zod schema
+      // 13) Validate with Zod schema
       let validated = finalSpec;
       try {
         validated = ProductExtractionSchema.parse(finalSpec);
@@ -455,11 +493,19 @@ serve(async (req) => {
         console.warn('⚠️ Zod validation failed, using normalized data:', e?.issues?.[0]?.message);
       }
 
-      // 11) Compute quality
-      const quality = computeQuality(validated, {});
+      // 14) Compute quality with citation metadata
+      const quality = computeQuality(validated, { citations: verifiedSpec.citations || {} });
       console.log(`📊 Quality computed: ${quality}%`);
 
-      // 12) Save to database
+      // Calculate file hash for traceability
+      const fileHash = await crypto.subtle.digest('SHA-256', pdfBuffer);
+      const hashArray = Array.from(new Uint8Array(fileHash));
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      
+      console.log(`🔐 File hash: ${hashHex.substring(0, 16)}...`);
+      console.log(`📊 Validation report: kept=${validationReport.keptFields}, dropped=${validationReport.droppedFields}`);
+
+      // 15) Save to database
       console.log('=== DATABASE PERSISTENCE ===');
       let insertResult = null;
       try {
@@ -474,6 +520,14 @@ serve(async (req) => {
             organization_id: organizationId,
             filename: fileName,
             spec_json: validated,
+            spec_json_metadata: {
+              model: modelUsed,
+              filename: fileName,
+              file_hash: hashHex,
+              processingTime: Date.now() - extractionStart,
+              validationReport: validationReport,
+              extractionStrategies: pdfExtractionResult.extractionStrategies
+            },
             quality_score: quality,
             providers: { runs: [{ provider: "openai-assistants", model: modelUsed || "unknown", ok: true, ms: attempts * 1000 }] }
           })
@@ -494,6 +548,7 @@ serve(async (req) => {
       return new Response(JSON.stringify({
         success: true,
         extractedData: validated,
+        extractedText: pdfExtractionResult.text.substring(0, 2000) + (pdfExtractionResult.text.length > 2000 ? '...' : ''),
         qualityScore: quality,
         extractionSource: "openai-assistants",
         providers: { runs: [{ provider: "openai-assistants", model: modelUsed || "unknown", ok: true, ms: attempts * 1000 }] },
@@ -503,7 +558,14 @@ serve(async (req) => {
           model: modelUsed || "unknown",
           source: "openai-assistants",
           version: "v2",
+          filename: fileName,
+          file_hash: hashHex,
+          processingTime: Date.now() - extractionStart,
+          validationReport: validationReport,
+          extractionStrategies: pdfExtractionResult.extractionStrategies,
+          hasWineContent: pdfExtractionResult.hasWineContent,
           processingTimeSeconds: attempts
+        }
         }
       }), {
         status: 200,
