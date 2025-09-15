@@ -8,6 +8,10 @@ interface ValidationReport {
   droppedFields: number;
   noCitationFields: string[];
   invalidEvidenceFields: string[];
+  lenientMode?: boolean;
+  reason?: string;
+  provider?: string;
+  directAnalysis?: boolean;
 }
 
 interface EvidenceVerificationResult {
@@ -90,16 +94,27 @@ function evidenceFoundInPDF(evidence: string, pdfText: string): boolean {
 /**
  * Verify evidence for extracted fields and remove fields without valid evidence
  */
-export function verifyEvidence(rawSpec: any, pdfText: string, fileName: string): EvidenceVerificationResult {
+export function verifyEvidence(
+  rawSpec: any, 
+  pdfText: string, 
+  fileName: string, 
+  options?: { mode?: 'strict' | 'lenient', reason?: string }
+): EvidenceVerificationResult {
   console.log('🔍 Starting evidence verification for', fileName);
   console.log('📄 PDF text sample (first 200 chars):', pdfText.substring(0, 200));
+  
+  const mode = options?.mode || 'strict';
+  const reason = options?.reason || 'unknown';
+  console.log(`🔧 Verification mode: ${mode} (reason: ${reason})`);
   
   const verifiedSpec = { ...rawSpec };
   const report: ValidationReport = {
     keptFields: 0,
     droppedFields: 0,
     noCitationFields: [],
-    invalidEvidenceFields: []
+    invalidEvidenceFields: [],
+    lenientMode: mode === 'lenient',
+    reason: reason
   };
   
   // Skip verification if no citations provided - use graceful fallback
@@ -171,40 +186,37 @@ export function verifyEvidence(rawSpec: any, pdfText: string, fileName: string):
     }
   }
   
-  // Implement graceful fallback: if ALL fields would be rejected, keep essential ones
+  // Apply lenient mode if requested or if strict verification would fail completely
   const totalFieldsWithData = Object.keys(verificationResults).length;
   const verifiedFields = Object.values(verificationResults).filter(Boolean).length;
   
   console.log(`📊 Verification results: ${verifiedFields}/${totalFieldsWithData} fields verified`);
   
-  if (verifiedFields === 0 && totalFieldsWithData > 0) {
-    console.log('⚠️ All fields would be rejected - implementing graceful fallback');
-    console.log('🛡️ Keeping essential fields with reduced confidence');
-    
-    // Keep essential fields even without perfect evidence
-    for (const fieldName of essentialFields) {
-      if (rawSpec[fieldName] !== null && rawSpec[fieldName] !== undefined && rawSpec[fieldName] !== '') {
-        console.log(`🔄 Preserving essential field: ${fieldName} = "${rawSpec[fieldName]}"`);
-        report.keptFields++;
-      }
+  if (mode === 'lenient' || (verifiedFields === 0 && totalFieldsWithData > 0)) {
+    if (mode !== 'lenient') {
+      console.log('⚠️ All fields would be rejected in strict mode - applying lenient fallback');
     }
+    console.log('🛡️ Using lenient mode: preserving data without strict evidence requirements');
     
-    // Remove non-essential fields
+    // In lenient mode, keep all essential fields and any fields that passed basic validation
+    report.lenientMode = true;
     for (const fieldName of fieldNames) {
-      if (!essentialFields.includes(fieldName) && rawSpec[fieldName] !== null) {
-        verifiedSpec[fieldName] = null;
-        report.droppedFields++;
+      if (rawSpec[fieldName] !== null && rawSpec[fieldName] !== undefined && rawSpec[fieldName] !== '') {
+        // Keep field in lenient mode
+        report.keptFields++;
       }
     }
-  } else {
-    // Normal verification: apply results
-    for (const [fieldName, isValid] of Object.entries(verificationResults)) {
-      if (isValid) {
-        report.keptFields++;
-      } else {
-        verifiedSpec[fieldName] = null;
-        report.droppedFields++;
-      }
+    
+    // Don't drop any fields in lenient mode - preserve original data
+    return { extractedData: verifiedSpec, validationReport: report };
+  }
+  // Normal strict verification: apply results
+  for (const [fieldName, isValid] of Object.entries(verificationResults)) {
+    if (isValid) {
+      report.keptFields++;
+    } else {
+      verifiedSpec[fieldName] = null;
+      report.droppedFields++;
     }
   }
   
