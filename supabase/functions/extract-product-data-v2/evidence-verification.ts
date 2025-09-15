@@ -15,7 +15,7 @@ interface ValidationReport {
 }
 
 interface EvidenceVerificationResult {
-  extractedData: any;
+  verifiedSpec: any;
   validationReport: ValidationReport;
 }
 
@@ -105,7 +105,7 @@ export function verifyEvidence(
   
   const mode = options?.mode || 'strict';
   const reason = options?.reason || 'unknown';
-  console.log(`🔧 Verification mode: ${mode} (reason: ${reason})`);
+  console.log(`🔥 STRICT MODE ENFORCED - no lenient fallback allowed`);
   
   const verifiedSpec = { ...rawSpec };
   const report: ValidationReport = {
@@ -117,18 +117,10 @@ export function verifyEvidence(
     reason: reason
   };
   
-  // Skip verification if no citations provided - use graceful fallback
+  // STRICT MODE: Citations are MANDATORY - fail if missing
   if (!rawSpec.citations || typeof rawSpec.citations !== 'object') {
-    console.log('⚠️ No citations provided in extraction, using graceful fallback');
-    console.log('📊 Raw extracted data keys:', Object.keys(rawSpec).filter(k => k !== 'citations' && k !== 'confidence'));
-    
-    // Count non-null fields as kept
-    Object.keys(rawSpec).forEach(key => {
-      if (rawSpec[key] !== null && rawSpec[key] !== undefined && key !== 'citations' && key !== 'confidence') {
-        report.keptFields++;
-      }
-    });
-    return { extractedData: verifiedSpec, validationReport: report };
+    console.error('❌ STRICT MODE: No citations provided - extraction REJECTED');
+    throw new Error('STRICT MODE: Citations are mandatory for all extracted fields');
   }
   
   const citations = rawSpec.citations;
@@ -208,7 +200,7 @@ export function verifyEvidence(
     }
     
     // Don't drop any fields in lenient mode - preserve original data
-    return { extractedData: verifiedSpec, validationReport: report };
+    return { verifiedSpec, validationReport: report };
   }
   // Normal strict verification: apply results
   for (const [fieldName, isValid] of Object.entries(verificationResults)) {
@@ -222,5 +214,5 @@ export function verifyEvidence(
   
   console.log(`🔍 Evidence verification completed: ${report.keptFields} kept, ${report.droppedFields} dropped`);
   
-  return { extractedData: verifiedSpec, validationReport: report };
+  return { verifiedSpec, validationReport: report };
 }

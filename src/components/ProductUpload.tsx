@@ -11,6 +11,7 @@ import { useProductionOptimizations } from '@/hooks/useProductionOptimizations';
 import { ExtractionDebugDialog } from "./ExtractionDebugDialog";
 import { DiagnosticPanel } from "./DiagnosticPanel";
 import { ValidationReportDialog } from './ValidationReportDialog';
+import { RawJsonDisplay } from './RawJsonDisplay';
 import { formatLLMError } from "@/utils/llmError";
 
 interface ProductUploadProps {
@@ -25,7 +26,7 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
   const [currentStep, setCurrentStep] = useState<'idle' | 'uploading' | 'extracting' | 'complete' | 'error' | 'manual-fallback'>('idle');
   const [retryCount, setRetryCount] = useState(0);
   const [lastError, setLastError] = useState<string>('');
-  const [extractionResult, setExtractionResult] = useState<{ data: ProductData; text: string; metadata?: any } | null>(null);
+  const [extractionResult, setExtractionResult] = useState<{ data: ProductData; text: string; metadata?: any; rawData?: any } | null>(null);
   const [fallbackContext, setFallbackContext] = useState<any>(null);
   const [processedFileName, setProcessedFileName] = useState<string>('');
   const [validationReport, setValidationReport] = useState<any>(null);
@@ -100,14 +101,15 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
           extractedData: extractResult.extractedData
         });
 
-        // Sauvegarder les résultats pour le debugging
+        // Sauvegarder les résultats pour le debugging - MODE STRICT
         setExtractionResult({
           data: extractResult.extractedData,
           text: extractResult.extractedText,
+          rawData: extractResult.metadata?.rawExtractedData,
           metadata: { 
             ...extractResult.metadata, 
             qualityScore: backendQualityScore,
-            extractionVersion: 'V2'
+            extractionVersion: 'V2.2-STRICT'
           }
         });
         

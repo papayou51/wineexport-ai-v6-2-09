@@ -54,8 +54,8 @@ serve(async (req) => {
     const body = await req.json();
     const { fileUrl, fileName, organizationId } = body;
 
-    console.log('=== PDF EXTRACTION V2.1 - FORCE REDEPLOY ===');
-    console.log('🚀 Google API prioritized - Forced redeploy');
+    console.log('=== PDF EXTRACTION V2.2 - MODE STRICT 100% IA ===');
+    console.log('🔥 STRICT MODE: No fallbacks, no normalization, raw AI only');
     console.log('Processing file:', { fileName, organizationId, timestamp: new Date().toISOString() });
 
     // Validate inputs
@@ -431,24 +431,9 @@ serve(async (req) => {
           useStrictMode = false;
         }
 
-        // Fallback to non-strict mode if needed
+        // STRICT MODE: NO FALLBACK TO NON-STRICT
         if (!useStrictMode) {
-          runResponse = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${openaiApiKey}`,
-              'Content-Type': 'application/json',
-              'OpenAI-Beta': 'assistants=v2'
-            },
-            body: JSON.stringify({
-              assistant_id: assistantId,
-              instructions: PRODUCT_EXTRACTION_PROMPT + "\n\nRETURNER UNIQUEMENT un JSON valide.",
-            })
-          });
-
-          if (!runResponse.ok) {
-            throw new Error(`Failed to create non-strict run: ${await runResponse.text()}`);
-          }
+          throw new Error('STRICT MODE: Schema must be valid - no fallback allowed');
         }
 
         const run = await runResponse.json();
@@ -592,28 +577,41 @@ serve(async (req) => {
       console.log(`📄 PDF text extracted: ${pdfExtractionResult.length} chars, strategies: ${pdfExtractionResult.extractionStrategies.join(', ')}`);
       
       console.log('🔍 Starting evidence verification...');
-      const verificationResult = verifyEvidence(rawSpec, pdfText, fileName, { mode: 'lenient', reason: 'openai_fallback' });
-      verifiedSpec = verificationResult.extractedData;
-      validationReport = verificationResult.validationReport;
+    // 11) STRICT MODE: Evidence verification MANDATORY with STRICT mode only
+    let verifiedSpec = rawSpec;
+    let validationReport: any = { keptFields: 0, droppedFields: 0 };
+    
+    if (provider === 'openai-assistants' && pdfExtractionResult?.text) {
+      const verification = verifyEvidence(rawSpec, pdfExtractionResult.text, fileName, { mode: 'strict' });
+      verifiedSpec = verification.verifiedSpec;
+      validationReport = verification.validationReport;
       validationReport.provider = 'openai-assistants';
-      console.log(`🔍 Evidence verification completed: ${validationReport.keptFields} kept, ${validationReport.droppedFields} dropped`);
+      console.log(`✅ STRICT evidence verification: ${validationReport.keptFields} kept, ${validationReport.droppedFields} dropped`);
+    } else if (provider === 'google-pdf') {
+      // Google PDF: Check for citations, fail if none
+      if (!rawSpec.citations || Object.keys(rawSpec.citations).length === 0) {
+        throw new Error('STRICT MODE: Google PDF extraction must provide citations for evidence');
+      }
+      Object.keys(rawSpec).forEach(key => {
+        if (rawSpec[key] !== null && rawSpec[key] !== undefined && key !== 'citations' && key !== 'confidence') {
+          validationReport.keptFields++;
+        }
+      });
+      console.log('✅ Google PDF citations verified in strict mode');
+    }
     }
 
-    // 12) Normalize & validate extracted data
-    const normalized = normalizeSpec(verifiedSpec);
-    console.log('✅ Spec normalized');
+    // 12) STRICT MODE: NO NORMALIZATION - Use raw verified data only
+    console.log('🔥 STRICT MODE: Skipping normalizeSpec and basicValidation');
     
-    // Apply basic sanity checks
-    const { spec: finalSpec, validationLog } = validateBasicFields(normalized);
-    console.log(`📊 Basic validation results: ${JSON.stringify(validationLog, null, 2)}`);
-
-    // 13) Validate with Zod schema
-    let validated = finalSpec;
+    // 13) STRICT MODE: Zod validation MUST pass - fail hard if not
+    let validated;
     try {
-      validated = ProductExtractionSchema.parse(finalSpec);
-      console.log('✅ Zod validation passed');
+      validated = ProductExtractionSchema.parse(verifiedSpec);
+      console.log('✅ STRICT Zod validation passed');
     } catch (e: any) {
-      console.warn('⚠️ Zod validation failed, using normalized data:', e?.issues?.[0]?.message);
+      console.error('❌ STRICT MODE: Zod validation FAILED - no fallback allowed');
+      throw new Error(`STRICT MODE: Validation failed - ${e?.issues?.[0]?.message || e.message}`);
     }
 
     // 14) Compute quality with citation metadata
