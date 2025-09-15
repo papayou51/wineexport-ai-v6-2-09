@@ -54,7 +54,8 @@ serve(async (req) => {
     const body = await req.json();
     const { fileUrl, fileName, organizationId } = body;
 
-    console.log('=== PDF EXTRACTION V2 STARTED ===');
+    console.log('=== PDF EXTRACTION V2.1 - FORCE REDEPLOY ===');
+    console.log('🚀 Google API prioritized - Forced redeploy');
     console.log('Processing file:', { fileName, organizationId, timestamp: new Date().toISOString() });
 
     // Validate inputs
