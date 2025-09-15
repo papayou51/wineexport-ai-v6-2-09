@@ -396,7 +396,7 @@ serve(async (req) => {
       // 7) Poll for completion
       let runStatus = run.status;
       let attempts = 0;
-      const maxAttempts = 60; // 60 seconds timeout
+      const maxAttempts = 18; // cap to ~18s to stay within Edge runtime limits
 
       while (runStatus === 'in_progress' || runStatus === 'queued') {
         attempts++;
