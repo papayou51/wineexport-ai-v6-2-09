@@ -31,29 +31,44 @@ function normalizeForEvidence(text: string): string {
 /**
  * Check if evidence text appears in the PDF content
  */
-function evidenceFoundInPDF(evidence: string, pdfText: string): boolean {
+function evidenceFoundInNormalizedPDF(evidence: string, normalizedPDF: string): boolean {
   const normalizedEvidence = normalizeForEvidence(evidence);
-  const normalizedPDF = normalizeForEvidence(pdfText);
   
   // Try exact match first
-  if (normalizedPDF.includes(normalizedEvidence)) {
-    return true;
-  }
-  
+  if (normalizedPDF.includes(normalizedEvidence)) return true;
+
   // Try word-by-word match for longer evidence (minimum 3 words match)
   const evidenceWords = normalizedEvidence.split(' ').filter(w => w.length > 2);
   if (evidenceWords.length >= 3) {
-    const matchingWords = evidenceWords.filter(word => normalizedPDF.includes(word));
-    return matchingWords.length >= 3;
+    let matches = 0;
+    for (const word of evidenceWords) {
+      if (normalizedPDF.includes(word)) {
+        matches++;
+        if (matches >= 3) return true;
+      }
+    }
+    return false;
   }
-  
+
   // For shorter evidence, require at least 2 words to match
   if (evidenceWords.length >= 2) {
-    const matchingWords = evidenceWords.filter(word => normalizedPDF.includes(word));
-    return matchingWords.length >= 2;
+    let matches = 0;
+    for (const word of evidenceWords) {
+      if (normalizedPDF.includes(word)) {
+        matches++;
+        if (matches >= 2) return true;
+      }
+    }
+    return false;
   }
   
   return false;
+}
+
+// Backwards-compat: normalize PDF here if only raw text provided
+function evidenceFoundInPDF(evidence: string, pdfText: string): boolean {
+  const normalizedPDF = normalizeForEvidence(pdfText);
+  return evidenceFoundInNormalizedPDF(evidence, normalizedPDF);
 }
 
 /**
@@ -83,6 +98,8 @@ export function verifyEvidence(rawSpec: any, pdfText: string, fileName: string):
   }
   
   const citations = rawSpec.citations;
+  // Normalize once for performance
+  const normalizedPDFText = normalizeForEvidence(pdfText);
   const fieldNames = Object.keys(rawSpec).filter(key => key !== 'citations' && key !== 'confidence');
   
   for (const fieldName of fieldNames) {
@@ -108,7 +125,7 @@ export function verifyEvidence(rawSpec: any, pdfText: string, fileName: string):
     
     for (const citation of fieldCitations) {
       if (citation.evidence && typeof citation.evidence === 'string') {
-        if (evidenceFoundInPDF(citation.evidence, pdfText)) {
+        if (evidenceFoundInNormalizedPDF(citation.evidence, normalizedPDFText)) {
           hasValidEvidence = true;
           console.log(`✅ Field ${fieldName} evidence verified: "${citation.evidence.substring(0, 50)}..."`);
           break;
