@@ -566,7 +566,6 @@ serve(async (req) => {
           hasWineContent: pdfExtractionResult.hasWineContent,
           processingTimeSeconds: attempts
         }
-        }
       }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
