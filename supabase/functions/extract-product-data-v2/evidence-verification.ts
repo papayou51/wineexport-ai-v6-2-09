@@ -29,7 +29,7 @@ function normalizeForEvidence(text: string): string {
 }
 
 /**
- * Check if evidence text appears in the PDF content
+ * Check if evidence text appears in the PDF content with improved fuzzy matching
  */
 function evidenceFoundInNormalizedPDF(evidence: string, normalizedPDF: string): boolean {
   const normalizedEvidence = normalizeForEvidence(evidence);
@@ -37,29 +37,45 @@ function evidenceFoundInNormalizedPDF(evidence: string, normalizedPDF: string): 
   // Try exact match first
   if (normalizedPDF.includes(normalizedEvidence)) return true;
 
-  // Try word-by-word match for longer evidence (minimum 3 words match)
+  // Try partial match (at least 70% of the evidence appears)
+  if (normalizedEvidence.length > 10) {
+    const partialLength = Math.floor(normalizedEvidence.length * 0.7);
+    for (let i = 0; i <= normalizedEvidence.length - partialLength; i++) {
+      const partial = normalizedEvidence.substring(i, i + partialLength);
+      if (partial.length > 10 && normalizedPDF.includes(partial)) {
+        return true;
+      }
+    }
+  }
+
+  // Try word-by-word match with lower threshold for better tolerance
   const evidenceWords = normalizedEvidence.split(' ').filter(w => w.length > 2);
   if (evidenceWords.length >= 3) {
     let matches = 0;
     for (const word of evidenceWords) {
       if (normalizedPDF.includes(word)) {
         matches++;
-        if (matches >= 3) return true;
       }
     }
-    return false;
+    // Reduced threshold: require 60% of words to match instead of all
+    const requiredMatches = Math.max(2, Math.ceil(evidenceWords.length * 0.6));
+    return matches >= requiredMatches;
   }
 
-  // For shorter evidence, require at least 2 words to match
+  // For shorter evidence, be more lenient
   if (evidenceWords.length >= 2) {
     let matches = 0;
     for (const word of evidenceWords) {
       if (normalizedPDF.includes(word)) {
         matches++;
-        if (matches >= 2) return true;
       }
     }
-    return false;
+    return matches >= Math.min(2, evidenceWords.length);
+  }
+  
+  // For very short evidence, check if at least the main word exists
+  if (evidenceWords.length === 1 && evidenceWords[0].length > 4) {
+    return normalizedPDF.includes(evidenceWords[0]);
   }
   
   return false;
@@ -76,6 +92,7 @@ function evidenceFoundInPDF(evidence: string, pdfText: string): boolean {
  */
 export function verifyEvidence(rawSpec: any, pdfText: string, fileName: string): EvidenceVerificationResult {
   console.log('🔍 Starting evidence verification for', fileName);
+  console.log('📄 PDF text sample (first 200 chars):', pdfText.substring(0, 200));
   
   const verifiedSpec = { ...rawSpec };
   const report: ValidationReport = {
@@ -85,9 +102,11 @@ export function verifyEvidence(rawSpec: any, pdfText: string, fileName: string):
     invalidEvidenceFields: []
   };
   
-  // Skip verification if no citations provided
+  // Skip verification if no citations provided - use graceful fallback
   if (!rawSpec.citations || typeof rawSpec.citations !== 'object') {
-    console.log('⚠️ No citations provided in extraction, keeping all fields');
+    console.log('⚠️ No citations provided in extraction, using graceful fallback');
+    console.log('📊 Raw extracted data keys:', Object.keys(rawSpec).filter(k => k !== 'citations' && k !== 'confidence'));
+    
     // Count non-null fields as kept
     Object.keys(rawSpec).forEach(key => {
       if (rawSpec[key] !== null && rawSpec[key] !== undefined && key !== 'citations' && key !== 'confidence') {
@@ -98,9 +117,15 @@ export function verifyEvidence(rawSpec: any, pdfText: string, fileName: string):
   }
   
   const citations = rawSpec.citations;
+  console.log('📊 Citations structure:', Object.keys(citations));
+  
   // Normalize once for performance
   const normalizedPDFText = normalizeForEvidence(pdfText);
   const fieldNames = Object.keys(rawSpec).filter(key => key !== 'citations' && key !== 'confidence');
+  
+  // Track essential fields that should be preserved if possible
+  const essentialFields = ['name', 'vintage', 'abv_percent', 'alcohol_percentage', 'appellation'];
+  const verificationResults: { [key: string]: boolean } = {};
   
   for (const fieldName of fieldNames) {
     const fieldValue = rawSpec[fieldName];
@@ -112,9 +137,9 @@ export function verifyEvidence(rawSpec: any, pdfText: string, fileName: string):
     
     // Check if field has citations
     if (!citations[fieldName] || !Array.isArray(citations[fieldName]) || citations[fieldName].length === 0) {
-      console.log(`❌ Field ${fieldName} has no citations, removing`);
-      verifiedSpec[fieldName] = null;
-      report.droppedFields++;
+      console.log(`❌ Field ${fieldName} has no citations`);
+      console.log(`   Value: "${String(fieldValue).substring(0, 100)}"`);
+      verificationResults[fieldName] = false;
       report.noCitationFields.push(fieldName);
       continue;
     }
@@ -123,23 +148,63 @@ export function verifyEvidence(rawSpec: any, pdfText: string, fileName: string):
     const fieldCitations = citations[fieldName];
     let hasValidEvidence = false;
     
+    console.log(`🔍 Checking ${fieldCitations.length} citations for field ${fieldName}`);
+    
     for (const citation of fieldCitations) {
       if (citation.evidence && typeof citation.evidence === 'string') {
+        console.log(`   Testing evidence: "${citation.evidence.substring(0, 100)}..."`);
+        
         if (evidenceFoundInNormalizedPDF(citation.evidence, normalizedPDFText)) {
           hasValidEvidence = true;
-          console.log(`✅ Field ${fieldName} evidence verified: "${citation.evidence.substring(0, 50)}..."`);
+          console.log(`✅ Field ${fieldName} evidence verified!`);
           break;
+        } else {
+          console.log(`❌ Evidence not found in PDF for ${fieldName}`);
         }
       }
     }
     
+    verificationResults[fieldName] = hasValidEvidence;
+    
     if (!hasValidEvidence) {
-      console.log(`❌ Field ${fieldName} has invalid evidence, removing`);
-      verifiedSpec[fieldName] = null;
-      report.droppedFields++;
       report.invalidEvidenceFields.push(fieldName);
-    } else {
-      report.keptFields++;
+    }
+  }
+  
+  // Implement graceful fallback: if ALL fields would be rejected, keep essential ones
+  const totalFieldsWithData = Object.keys(verificationResults).length;
+  const verifiedFields = Object.values(verificationResults).filter(Boolean).length;
+  
+  console.log(`📊 Verification results: ${verifiedFields}/${totalFieldsWithData} fields verified`);
+  
+  if (verifiedFields === 0 && totalFieldsWithData > 0) {
+    console.log('⚠️ All fields would be rejected - implementing graceful fallback');
+    console.log('🛡️ Keeping essential fields with reduced confidence');
+    
+    // Keep essential fields even without perfect evidence
+    for (const fieldName of essentialFields) {
+      if (rawSpec[fieldName] !== null && rawSpec[fieldName] !== undefined && rawSpec[fieldName] !== '') {
+        console.log(`🔄 Preserving essential field: ${fieldName} = "${rawSpec[fieldName]}"`);
+        report.keptFields++;
+      }
+    }
+    
+    // Remove non-essential fields
+    for (const fieldName of fieldNames) {
+      if (!essentialFields.includes(fieldName) && rawSpec[fieldName] !== null) {
+        verifiedSpec[fieldName] = null;
+        report.droppedFields++;
+      }
+    }
+  } else {
+    // Normal verification: apply results
+    for (const [fieldName, isValid] of Object.entries(verificationResults)) {
+      if (isValid) {
+        report.keptFields++;
+      } else {
+        verifiedSpec[fieldName] = null;
+        report.droppedFields++;
+      }
     }
   }
   

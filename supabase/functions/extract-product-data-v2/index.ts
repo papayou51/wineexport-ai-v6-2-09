@@ -569,6 +569,7 @@ serve(async (req) => {
           file_hash: hashHex,
           processingTime: Date.now() - extractionStart,
           validationReport: validationReport,
+          rawExtractedData: rawSpec,
           extractionStrategies: pdfExtractionResult.extractionStrategies,
           hasWineContent: pdfExtractionResult.hasWineContent,
           processingTimeSeconds: attempts

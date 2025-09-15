@@ -10,6 +10,7 @@ import { useUserAnalytics } from '@/hooks/useUserAnalytics';
 import { useProductionOptimizations } from '@/hooks/useProductionOptimizations';
 import { ExtractionDebugDialog } from "./ExtractionDebugDialog";
 import { DiagnosticPanel } from "./DiagnosticPanel";
+import { ValidationReportDialog } from './ValidationReportDialog';
 import { formatLLMError } from "@/utils/llmError";
 
 interface ProductUploadProps {
@@ -571,6 +572,14 @@ const transformV2ToProductData = (v2Data: any) => {
                 extractedData={extractionResult.data}
                 extractedText={extractionResult.text}
                 metadata={extractionResult.metadata}
+              />
+            )}
+            {validationReport && (
+              <ValidationReportDialog
+                validationReport={validationReport}
+                rawData={extractionResult?.metadata?.rawExtractedData}
+                processedData={extractionResult?.data}
+                qualityScore={extractionResult?.metadata?.qualityScore}
               />
             )}
             <Button onClick={resetUpload} variant="outline">
