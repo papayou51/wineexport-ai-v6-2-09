@@ -505,16 +505,22 @@ serve(async (req) => {
       console.log(`🔐 File hash: ${hashHex.substring(0, 16)}...`);
       console.log(`📊 Validation report: kept=${validationReport.keptFields}, dropped=${validationReport.droppedFields}`);
 
-      // 15) Save to database
+      // 15) Save to database (with time budget check)
       console.log('=== DATABASE PERSISTENCE ===');
       let insertResult = null;
-      try {
-        const supabase = createClient(
-          Deno.env.get('SUPABASE_URL')!,
-          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-        );
+      
+      // Check if we have time left for DB operation (leave 2s buffer)
+      const elapsed = Date.now() - extractionStart;
+      if (elapsed > 18000) {
+        console.warn('⚠️ Skipping DB insert - approaching timeout limit');
+      } else {
+        try {
+          const supabase = createClient(
+            Deno.env.get('SUPABASE_URL')!,
+            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+          );
 
-        const { data: insertData, error: insertError } = await supabase
+          const { data: insertData, error: insertError } = await supabase
           .from('product_specs')
           .insert({
             organization_id: organizationId,
@@ -540,8 +546,9 @@ serve(async (req) => {
           insertResult = insertData;
           console.log('✅ Spec persisted to database:', insertResult.id);
         }
-      } catch (dbError: any) {
-        console.error('❌ Database error:', dbError);
+        } catch (dbError: any) {
+          console.error('❌ Database error:', dbError);
+        }
       }
 
       // Success response
@@ -602,8 +609,10 @@ serve(async (req) => {
         );
       }
 
-      await Promise.all(cleanupPromises);
-      console.log('Cleanup completed');
+      // Make cleanup non-blocking to avoid timeout
+      Promise.all(cleanupPromises).then(() => {
+        console.log('Cleanup completed');
+      }).catch(e => console.warn('Cleanup failed:', e));
     }
 
   } catch (error: any) {

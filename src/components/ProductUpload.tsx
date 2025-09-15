@@ -483,6 +483,13 @@ const transformV2ToProductData = (v2Data: any) => {
           errorSuggestions.push("Compressez le PDF");
           errorSuggestions.push("Utilisez un fichier de moins de 50MB");
         }
+        
+        // Handle HTTP status 546 (CPU timeout) specifically 
+        if ((error as any).status === 546 || errorMsg.includes('cpu time exceeded')) {
+          toastErrorMessage = "Délai de traitement dépassé";
+          errorDescription = "Le traitement a dépassé la limite de temps autorisée. Le document est peut-être trop complexe.";
+          errorSuggestions = ["Réessayez maintenant", "Utilisez un PDF plus simple"];
+        }
       }
       
       // Include suggestions in the toast if any
