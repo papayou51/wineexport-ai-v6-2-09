@@ -7,7 +7,12 @@ export async function callGoogleFromRawPDF(pdfBuffer: ArrayBuffer): Promise<Json
   console.log(`🔎 Google PDF API request: model=${model}, PDF size=${Math.round(pdfBuffer.byteLength / 1024)}KB`);
 
   // 1) Upload du PDF via multipart (uploadType=multipart)
-  const meta = { display_name: "spec.pdf", mime_type: "application/pdf" };
+  const meta = { 
+    file: { 
+      displayName: "spec.pdf", 
+      mimeType: "application/pdf" 
+    } 
+  };
   const boundary = "BOUNDARY_" + crypto.randomUUID();
 
   const parts = [
@@ -46,7 +51,56 @@ export async function callGoogleFromRawPDF(pdfBuffer: ArrayBuffer): Promise<Json
   console.log('✅ PDF uploaded to Google Files API:', file.name);
 
   // 2) Appel génération en référencant le fichier
-  const system = "You are an expert oenologist. Read the attached PDF and extract a normalized product spec. Return ONLY valid JSON. Use null when unknown. Include page citations (field -> array of page numbers).";
+  const system = "You are an expert oenologist. Read the attached PDF and extract a normalized product spec. Return ONLY valid JSON. Use null when unknown. MANDATORY: Include 'citations' object with evidence and 'confidence' scores for each field.";
+  
+  // Strict schema aligned with ProductExtractionSchema
+  const responseSchema = {
+    type: "object",
+    properties: {
+      name: { type: ["string", "null"] },
+      producer: { type: ["string", "null"] },
+      appellation: { type: ["string", "null"] },
+      region: { type: ["string", "null"] },
+      country: { type: ["string", "null"] },
+      color: { type: ["string", "null"] },
+      vintage: { type: ["number", "null"] },
+      grapes: { 
+        type: ["array", "null"],
+        items: { type: "string" }
+      },
+      alcohol: { type: ["number", "null"] },
+      sugar: { type: ["number", "null"] },
+      acidity: { type: ["number", "null"] },
+      ph: { type: ["number", "null"] },
+      serving_temperature: { type: ["number", "null"] },
+      aging: { type: ["string", "null"] },
+      awards: { type: ["string", "null"] },
+      tasting_notes: { type: ["string", "null"] },
+      food_pairing: { type: ["string", "null"] },
+      storage_conditions: { type: ["string", "null"] },
+      citations: {
+        type: "object",
+        additionalProperties: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              page: { type: "number" },
+              evidence: { type: "string" }
+            },
+            required: ["page", "evidence"]
+          }
+        }
+      },
+      confidence: {
+        type: "object",
+        additionalProperties: { type: "number" }
+      }
+    },
+    required: ["citations", "confidence"],
+    additionalProperties: false
+  };
+
   const gen = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${k}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -58,7 +112,10 @@ export async function callGoogleFromRawPDF(pdfBuffer: ArrayBuffer): Promise<Json
           { fileData: { fileUri: file?.uri ?? undefined, mimeType: "application/pdf" } }
         ]
       }],
-      generationConfig: { responseMimeType: "application/json" }
+      generationConfig: { 
+        responseMimeType: "application/json",
+        responseSchema: responseSchema
+      }
     })
   });
 

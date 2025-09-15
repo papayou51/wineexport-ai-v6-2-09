@@ -184,23 +184,15 @@ export function verifyEvidence(
   
   console.log(`📊 Verification results: ${verifiedFields}/${totalFieldsWithData} fields verified`);
   
-  if (mode === 'lenient' || (verifiedFields === 0 && totalFieldsWithData > 0)) {
-    if (mode !== 'lenient') {
-      console.log('⚠️ All fields would be rejected in strict mode - applying lenient fallback');
-    }
-    console.log('🛡️ Using lenient mode: preserving data without strict evidence requirements');
-    
-    // In lenient mode, keep all essential fields and any fields that passed basic validation
-    report.lenientMode = true;
-    for (const fieldName of fieldNames) {
-      if (rawSpec[fieldName] !== null && rawSpec[fieldName] !== undefined && rawSpec[fieldName] !== '') {
-        // Keep field in lenient mode
-        report.keptFields++;
-      }
-    }
-    
-    // Don't drop any fields in lenient mode - preserve original data
-    return { verifiedSpec, validationReport: report };
+  // STRICT MODE: No lenient fallback
+  if (verifiedFields === 0 && totalFieldsWithData > 0) {
+    console.log('🚫 STRICT MODE: All fields would be rejected - failing hard');
+    throw new Error('STRICT_NO_VALID_EVIDENCE: No fields with valid evidence found');
+  }
+  
+  if (verifiedFields < totalFieldsWithData * 0.3) {
+    console.log(`🚫 STRICT MODE: Too few fields verified (${verifiedFields}/${totalFieldsWithData})`);
+    throw new Error(`STRICT_EVIDENCE_VERIFICATION_FAILED: Only ${verifiedFields}/${totalFieldsWithData} fields verified`);
   }
   // Normal strict verification: apply results
   for (const [fieldName, isValid] of Object.entries(verificationResults)) {

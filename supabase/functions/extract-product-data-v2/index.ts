@@ -54,8 +54,12 @@ serve(async (req) => {
     const body = await req.json();
     const { fileUrl, fileName, organizationId } = body;
 
-    console.log('=== PDF EXTRACTION V2.2 - MODE STRICT 100% IA ===');
-    console.log('🔥 STRICT MODE: No fallbacks, no normalization, raw AI only');
+  console.log('=== PDF EXTRACTION V2.2 - MODE STRICT 100% IA ===');
+  console.log('🔥 STRICT MODE: No fallbacks, no normalization, raw AI only');
+  
+  const STRICT_AI_MODE = Deno.env.get("STRICT_AI_MODE") === "true" || true; // Always strict for now
+  console.log(`🎯 STRICT_AI_MODE: ${STRICT_AI_MODE}`);
+  console.log(`🎯 STRICT_AI_MODE: ${STRICT_AI_MODE}`);
     console.log('Processing file:', { fileName, organizationId, timestamp: new Date().toISOString() });
 
     // Validate inputs
@@ -130,6 +134,30 @@ serve(async (req) => {
         console.error('❌ Error message:', error.message);
         console.error('❌ Error stack:', error.stack);
         
+        if (STRICT_AI_MODE) {
+          console.log('🚫 STRICT MODE: Google failed, no fallback allowed');
+          
+          // Determine specific error type
+          let errorCode = 'GOOGLE_API_FAILED';
+          if (error.message?.includes('Invalid JSON payload received. Unknown name')) {
+            errorCode = 'GOOGLE_FILE_UPLOAD_INVALID_META';
+          } else if (error.message?.includes('File Upload Error')) {
+            errorCode = 'GOOGLE_FILE_UPLOAD_ERROR';  
+          } else if (error.message?.includes('Generation Error')) {
+            errorCode = 'GOOGLE_GENERATION_ERROR';
+          }
+          
+          return new Response(JSON.stringify({
+            success: false,
+            error: errorCode,
+            details: `STRICT MODE: Google API failed - ${error.message}`,
+            timestamp: new Date().toISOString()
+          }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+        
         if (!openaiApiKey) {
           throw new Error(`Google PDF failed and no OpenAI fallback available: ${error.message}`);
         }
@@ -139,14 +167,32 @@ serve(async (req) => {
       console.log('⚠️ Google API key not available, skipping Google PDF analysis');
     }
     
-    // Fallback to OpenAI Assistants API if Google failed or unavailable
-    console.log('🔍 OpenAI fallback logic check:', {
-      hasRawSpec: !!rawSpec,
-      hasOpenaiKey: !!openaiApiKey,
-      willUseOpenAI: !rawSpec && !!openaiApiKey,
-      googleSucceeded: !!rawSpec,
-      reason: !rawSpec ? (googleApiKey ? 'google_failed' : 'google_not_available') : 'google_succeeded'
-    });
+    // Étape 3: Vérification stricte Google - Citations obligatoires
+    if (rawSpec && extractionSource === 'google') {
+      console.log('🔍 Verifying Google extraction has citations...');
+      
+      if (!rawSpec.citations || Object.keys(rawSpec.citations).length === 0) {
+        console.log('⚠️ Google extraction missing citations');
+        
+        if (STRICT_AI_MODE) {
+          console.log('🚫 STRICT MODE: No citations found, failing hard');
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'STRICT_NO_CITATIONS',
+            details: 'STRICT MODE: Google extraction missing mandatory citations',
+            timestamp: new Date().toISOString()
+          }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+        
+        rawSpec = null; // Reset to try OpenAI
+        extractionSource = null;
+      } else {
+        console.log('✅ Google extraction has citations');
+      }
+    }
     
     if (!rawSpec && openaiApiKey) {
       console.log('🔄 Using OpenAI Assistants API as fallback...');
