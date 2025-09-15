@@ -62,9 +62,16 @@ serve(async (req) => {
       throw new Error('Missing required parameters: fileUrl, fileName, or organizationId');
     }
 
-    // Check available API keys
+    // Check available API keys with detailed logging
     const googleApiKey = Deno.env.get('GOOGLE_API_KEY');
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
+    
+    console.log('🔑 API Keys availability check:', {
+      googleApiKey: googleApiKey ? 'AVAILABLE' : 'NOT_SET',
+      openaiApiKey: openaiApiKey ? 'AVAILABLE' : 'NOT_SET',
+      googleKeyLength: googleApiKey ? googleApiKey.length : 0,
+      openaiKeyLength: openaiApiKey ? openaiApiKey.length : 0
+    });
     
     if (!googleApiKey && !openaiApiKey) {
       return new Response(JSON.stringify({
@@ -99,23 +106,47 @@ serve(async (req) => {
     let pdfExtractionResult: any = null;
     
     // Try Google PDF API first (direct analysis)
+    console.log('🎯 Google API attempt logic:', {
+      hasGoogleKey: !!googleApiKey,
+      googleKeyPrefix: googleApiKey ? googleApiKey.substring(0, 8) + '...' : 'none',
+      willAttemptGoogle: !!googleApiKey
+    });
+    
     if (googleApiKey) {
       try {
         console.log('🔎 Attempting Google PDF direct analysis...');
+        console.log('🔎 Calling callGoogleFromRawPDF with buffer size:', pdfBuffer.byteLength);
+        
         rawSpec = await callGoogleFromRawPDF(pdfBuffer);
+        
         provider = 'google-pdf';
         modelUsed = Deno.env.get('GOOGLE_MODEL') || 'gemini-1.5-pro';
         console.log('✅ Google PDF analysis successful');
+        console.log('✅ Google rawSpec keys:', Object.keys(rawSpec || {}));
       } catch (error: any) {
-        console.warn('⚠️ Google PDF analysis failed:', error.message);
+        console.error('❌ Google PDF analysis failed - Full error:', error);
+        console.error('❌ Error name:', error.name);
+        console.error('❌ Error message:', error.message);
+        console.error('❌ Error stack:', error.stack);
+        
         if (!openaiApiKey) {
           throw new Error(`Google PDF failed and no OpenAI fallback available: ${error.message}`);
         }
-        // Continue to OpenAI fallback
+        console.log('🔄 Will fallback to OpenAI due to Google error');
       }
+    } else {
+      console.log('⚠️ Google API key not available, skipping Google PDF analysis');
     }
     
     // Fallback to OpenAI Assistants API if Google failed or unavailable
+    console.log('🔍 OpenAI fallback logic check:', {
+      hasRawSpec: !!rawSpec,
+      hasOpenaiKey: !!openaiApiKey,
+      willUseOpenAI: !rawSpec && !!openaiApiKey,
+      googleSucceeded: !!rawSpec,
+      reason: !rawSpec ? (googleApiKey ? 'google_failed' : 'google_not_available') : 'google_succeeded'
+    });
+    
     if (!rawSpec && openaiApiKey) {
       console.log('🔄 Using OpenAI Assistants API as fallback...');
       provider = 'openai-assistants';
