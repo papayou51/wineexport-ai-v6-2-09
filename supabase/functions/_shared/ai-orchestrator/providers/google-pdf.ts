@@ -1,3 +1,5 @@
+import { encode as base64Encode } from "https://deno.land/std@0.224.0/encoding/base64.ts";
+
 type JsonSpec = Record<string, unknown>;
 
 export async function callGoogleFromRawPDF(pdfBuffer: ArrayBuffer): Promise<JsonSpec> {
@@ -47,8 +49,15 @@ export async function callGoogleFromRawPDF(pdfBuffer: ArrayBuffer): Promise<Json
     throw e; 
   }
 
-  const file = await up.json(); // { name: "files/xxx", uri?: "...", ... }
-  console.log('✅ PDF uploaded to Google Files API:', file.name);
+  const uploaded = await up.json(); // { name: "files/xxx", file?: { name: "...", uri: "..." }, ... }
+  console.log('✅ PDF uploaded to Google Files API - Raw response:', JSON.stringify(uploaded, null, 2));
+  
+  // Extract fileUri correctly from the upload response
+  const fileUri = uploaded?.file?.name ?? uploaded?.name ?? null;
+  const fileMimeType = uploaded?.file?.mimeType ?? "application/pdf";
+  
+  console.log('📎 Extracted fileUri:', fileUri);
+  console.log('📄 File mimeType:', fileMimeType);
 
   // 2) Appel génération en référencant le fichier
   const system = "You are an expert oenologist. Read the attached PDF and extract a normalized product spec. Return ONLY valid JSON. Use null when unknown. MANDATORY: Include 'citations' object with evidence and 'confidence' scores for each field.";
@@ -101,9 +110,9 @@ export async function callGoogleFromRawPDF(pdfBuffer: ArrayBuffer): Promise<Json
         role: "user",
         parts: [
           { text: system },
-          file?.uri 
-            ? { fileData: { fileUri: file.uri, mimeType: "application/pdf" } }
-            : { inlineData: { mimeType: "application/pdf", data: btoa(String.fromCharCode(...new Uint8Array(pdfBuffer))) } }
+          fileUri 
+            ? { fileData: { fileUri, mimeType: fileMimeType } }
+            : { inlineData: { mimeType: "application/pdf", data: base64Encode(new Uint8Array(pdfBuffer)) } }
         ]
       }],
       generationConfig: { 

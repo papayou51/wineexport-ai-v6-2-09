@@ -139,12 +139,16 @@ serve(async (req) => {
           
           // Determine specific error type
           let errorCode = 'GOOGLE_API_FAILED';
-          if (error.message?.includes('Invalid JSON payload received. Unknown name')) {
+          if (error.name === 'RangeError' && error.message?.includes('Maximum call stack size exceeded')) {
+            errorCode = 'GOOGLE_INLINE_BASE64_STACK_OVERFLOW';
+          } else if (error.message?.includes('Invalid JSON payload received. Unknown name')) {
             errorCode = 'GOOGLE_FILE_UPLOAD_INVALID_META';
           } else if (error.message?.includes('File Upload Error')) {
             errorCode = 'GOOGLE_FILE_UPLOAD_ERROR';  
           } else if (error.message?.includes('Generation Error')) {
             errorCode = 'GOOGLE_GENERATION_ERROR';
+          } else if (error.message?.includes('Invalid parameter')) {
+            errorCode = 'GOOGLE_RESPONSE_SCHEMA_INVALID';
           }
           
           return new Response(JSON.stringify({
