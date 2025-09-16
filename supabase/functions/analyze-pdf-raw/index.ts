@@ -180,10 +180,32 @@ serve(async (req) => {
 
     console.log(`✅ PDF analysis completed: ${raw.length} characters`);
 
+    // Nettoyage du fichier OpenAI (éviter l'accumulation)
+    try {
+      await fetch(`${OPENAI_API}/files/${fileId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
+      });
+      console.log(`🗑️ Cleaned up OpenAI file: ${fileId}`);
+    } catch {
+      // ignore cleanup errors
+    }
+
+    // Calcul du hash SHA-256 et de la longueur en octets pour vérification d'intégrité
+    const bytes = new TextEncoder().encode(raw);
+    const buf = await crypto.subtle.digest("SHA-256", bytes);
+    const hash = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+
     // ⚠️ Retour BRUT, sans trim/normalisation
     return new Response(raw, {
       status: 200,
-      headers: { ...corsHeaders, "Content-Type": "text/plain; charset=UTF-8" },
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "text/plain; charset=UTF-8",
+        "Content-Length": String(bytes.byteLength),
+        "X-Content-SHA256": hash,
+        "X-Content-Bytes": String(bytes.byteLength),
+      },
     });
   } catch (err: any) {
     console.error("❌ Error in analyze-pdf-raw function:", err);
