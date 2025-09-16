@@ -3,6 +3,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const OPENAI_API = "https://api.openai.com/v1";
+const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB limit
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,29 +11,57 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+// Enhanced error messages for better UX
+const getErrorMessage = (status: number, details?: string) => {
+  switch (status) {
+    case 413:
+      return "Fichier trop volumineux. Utilisez un PDF de moins de 25 Mo.";
+    case 415:
+      return "Seuls les fichiers PDF sont acceptés.";
+    case 401:
+    case 403:
+      return "Accès bloqué (CORS/JWT). Réessayez après connexion ou contactez le support.";
+    case 502:
+      return "Le moteur IA a renvoyé une erreur. Réessayez avec un PDF plus simple.";
+    default:
+      return details || "Erreur inconnue lors de l'analyse du PDF.";
+  }
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   if (!OPENAI_API_KEY) {
-    return new Response(JSON.stringify({ error: "OpenAI API key not configured" }), {
+    console.error("❌ OpenAI API key not configured");
+    return new Response(getErrorMessage(500, "Configuration serveur manquante"), {
       status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "text/plain; charset=UTF-8" },
     });
   }
 
   try {
     const form = await req.formData();
     const file = form.get("file");
+    
     if (!(file instanceof File)) {
-      return new Response(JSON.stringify({ error: "Missing 'file' (PDF)" }), {
+      return new Response(getErrorMessage(400, "Missing 'file' (PDF)"), {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...corsHeaders, "Content-Type": "text/plain; charset=UTF-8" },
       });
     }
+    
     if (!file.type?.includes("pdf")) {
-      return new Response(JSON.stringify({ error: "Only PDF is accepted" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      return new Response(getErrorMessage(415), {
+        status: 415,
+        headers: { ...corsHeaders, "Content-Type": "text/plain; charset=UTF-8" },
+      });
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      console.error(`❌ File too large: ${Math.round(file.size / 1024 / 1024)} MB`);
+      return new Response(getErrorMessage(413), {
+        status: 413,
+        headers: { ...corsHeaders, "Content-Type": "text/plain; charset=UTF-8" },
       });
     }
 
@@ -52,18 +81,18 @@ serve(async (req) => {
     if (!upRes.ok) {
       const t = await upRes.text();
       console.error("❌ OpenAI /files error:", t);
-      return new Response(JSON.stringify({ error: "OpenAI /files error", details: t }), {
+      return new Response(getErrorMessage(502, "Erreur d'upload du fichier"), {
         status: 502,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...corsHeaders, "Content-Type": "text/plain; charset=UTF-8" },
       });
     }
 
     const uploaded = await upRes.json();
     const fileId = uploaded?.id as string;
     if (!fileId) {
-      return new Response(JSON.stringify({ error: "No file id returned by OpenAI" }), {
+      return new Response(getErrorMessage(502, "No file id returned by OpenAI"), {
         status: 502,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...corsHeaders, "Content-Type": "text/plain; charset=UTF-8" },
       });
     }
 
@@ -103,9 +132,9 @@ serve(async (req) => {
     if (!respRes.ok) {
       const t = await respRes.text();
       console.error("❌ OpenAI /responses error:", t);
-      return new Response(JSON.stringify({ error: "OpenAI /responses error", details: t }), {
+      return new Response(getErrorMessage(502, "Erreur de traitement IA"), {
         status: 502,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...corsHeaders, "Content-Type": "text/plain; charset=UTF-8" },
       });
     }
 
@@ -118,11 +147,13 @@ serve(async (req) => {
       "";
 
     if (!raw) {
-      return new Response(JSON.stringify({ error: "Empty AI output" }), {
+      return new Response(getErrorMessage(502, "Empty AI output"), {
         status: 502,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...corsHeaders, "Content-Type": "text/plain; charset=UTF-8" },
       });
     }
+
+    console.log(`✅ PDF analysis completed: ${raw.length} characters`);
 
     // ⚠️ Retour BRUT, sans trim/normalisation
     return new Response(raw, {
@@ -132,8 +163,8 @@ serve(async (req) => {
   } catch (err: any) {
     console.error("❌ Error in analyze-pdf-raw function:", err);
     return new Response(
-      JSON.stringify({ error: "Internal server error", details: err?.message ?? String(err) }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      getErrorMessage(500, err?.message ?? String(err)),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "text/plain; charset=UTF-8" } },
     );
   }
 });

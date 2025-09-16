@@ -3,5 +3,8 @@ project_id = "gbuyfwlhxfwecitjtxii"
 [functions.extract-product-data-v2]
 verify_jwt = false
 
+[functions.extract-product-data-v2-deprecated]
+verify_jwt = false
+
 [functions.analyze-pdf-raw]
 verify_jwt = false
