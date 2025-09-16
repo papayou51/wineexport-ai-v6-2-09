@@ -153,7 +153,7 @@ serve(async (req) => {
             details: `STRICT MODE: Google API failed - ${error.message}`,
             timestamp: new Date().toISOString()
           }), {
-            status: 500,
+            status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           });
         }
@@ -168,7 +168,7 @@ serve(async (req) => {
     }
     
     // Étape 3: Vérification stricte Google - Citations obligatoires
-    if (rawSpec && extractionSource === 'google') {
+    if (rawSpec && provider === 'google-pdf') {
       console.log('🔍 Verifying Google extraction has citations...');
       
       if (!rawSpec.citations || Object.keys(rawSpec.citations).length === 0) {
@@ -182,13 +182,13 @@ serve(async (req) => {
             details: 'STRICT MODE: Google extraction missing mandatory citations',
             timestamp: new Date().toISOString()
           }), {
-            status: 400,
+            status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           });
         }
         
         rawSpec = null; // Reset to try OpenAI
-        extractionSource = null;
+        provider = '';
       } else {
         console.log('✅ Google extraction has citations');
       }

@@ -81,7 +81,7 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
         setExtractionProgress(prev => Math.min(prev + 5, 90));
       }, 200);
 
-      const extractResult = await extractMutation.mutateAsync({
+      const result = await extractMutation.mutateAsync({
         fileUrl: uploadResult.publicUrl,
         fileName: uploadResult.fileName,
         organizationId,
@@ -89,41 +89,66 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
 
       clearInterval(extractInterval);
       setExtractionProgress(100);
+
+      // Check if this is a successful response with error details (strict mode)
+      if (!result.success) {
+        // Handle specific strict mode errors
+        const errorCode = result.error || 'UNKNOWN_ERROR';
+        const errorMessage = result.details || result.error || 'Extraction failed';
+        
+        if (errorCode.startsWith('GOOGLE_') || errorCode.startsWith('STRICT_')) {
+          console.error(`❌ Strict mode error [${errorCode}]:`, errorMessage);
+          
+          setCurrentStep('error');
+          setLastError(errorMessage);
+          
+          toast({
+            title: "Mode Strict AI - Erreur",
+            description: `Code: ${errorCode}. ${errorMessage}`,
+            variant: "destructive",
+          });
+          
+          return;
+        }
+        
+        throw new Error(errorMessage);
+      }
+
       setCurrentStep('complete');
 
-      if (extractResult.success && extractResult.extractedData) {
+      if (result.success && result.extractedData) {
         // Use V2 backend quality score directly instead of recalculating
-        const backendQualityScore = extractResult.qualityScore || 0;
+        const backendQualityScore = result.qualityScore || 0;
         
         console.log('✅ V2 Extraction completed:', {
           backendScore: backendQualityScore,
-          provider: extractResult.extractionSource,
-          extractedData: extractResult.extractedData
+          provider: result.extractionSource,
+          extractedData: result.extractedData
         });
 
         // Sauvegarder les résultats pour le debugging - MODE STRICT
         setExtractionResult({
-          data: extractResult.extractedData,
-          text: extractResult.extractedText,
-          rawData: extractResult.metadata?.rawExtractedData,
+          data: result.extractedData,
+          text: result.extractedText,
+          rawData: result.metadata?.rawExtractedData,
           metadata: { 
-            ...extractResult.metadata, 
+            ...result.metadata, 
             qualityScore: backendQualityScore,
             extractionVersion: 'V2.2-STRICT'
           }
         });
         
         // Store validation info for UI display
-        setProcessedFileName(extractResult.metadata?.filename || uploadResult.fileName);
-        setValidationReport(extractResult.metadata?.validationReport);
+        setProcessedFileName(result.metadata?.filename || uploadResult.fileName);
+        setValidationReport(result.metadata?.validationReport);
 
         // Track successful extraction with provider info
         await trackProductWorkflow('data_extraction', undefined, undefined, {
           success: true,
           extraction_time: performance.now() - startTime,
-          extracted_fields: Object.keys(extractResult.extractedData).length,
+          extracted_fields: Object.keys(result.extractedData).length,
           quality_score: backendQualityScore,
-          provider: extractResult.extractionSource || 'v2-backend',
+          provider: result.extractionSource || 'v2-backend',
           file_name: file.name,
           file_size: file.size,
         });
@@ -137,34 +162,34 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
           let successfulProvider = 'unknown';
           
           // Strategy 1: Check providers.runs array
-          if (extractResult.providers?.runs) {
-            const successfulRun = extractResult.providers.runs.find(run => run.ok === true || run.success === true);
+          if (result.providers?.runs) {
+            const successfulRun = result.providers.runs.find(run => run.ok === true || run.success === true);
             if (successfulRun) {
               successfulProvider = successfulRun.provider;
             }
           }
           
           // Strategy 2: Check metadata.runs array  
-          if (successfulProvider === 'unknown' && extractResult.metadata?.runs) {
-            const successfulRun = extractResult.metadata.runs.find(run => run.success === true);
+          if (successfulProvider === 'unknown' && result.metadata?.runs) {
+            const successfulRun = result.metadata.runs.find(run => run.success === true);
             if (successfulRun) {
               successfulProvider = successfulRun.provider;
             }
           }
           
           // Strategy 3: Check extractionSource field (V2 primary field)
-          if (successfulProvider === 'unknown' && extractResult.extractionSource) {
-            successfulProvider = extractResult.extractionSource;
+          if (successfulProvider === 'unknown' && result.extractionSource) {
+            successfulProvider = result.extractionSource;
           }
           
           // Strategy 4: Check direct provider field (legacy)
-          if (successfulProvider === 'unknown' && extractResult.provider) {
-            successfulProvider = extractResult.provider;
+          if (successfulProvider === 'unknown' && result.provider) {
+            successfulProvider = result.provider;
           }
           
           // Strategy 5: Check primaryProvider field (legacy)
-          if (successfulProvider === 'unknown' && extractResult.primaryProvider) {
-            successfulProvider = extractResult.primaryProvider;
+          if (successfulProvider === 'unknown' && result.primaryProvider) {
+            successfulProvider = result.primaryProvider;
           }
           
           // Add extraction result to monitoring with V2 provider info
@@ -174,7 +199,7 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
             qualityScore: backendQualityScore,
             extractionTime: performance.now() - startTime,
             fileName: file.name,
-            providers: extractResult.providers
+            providers: result.providers
           });
         }
         
@@ -248,20 +273,20 @@ const transformV2ToProductData = (v2Data: any) => {
           };
         };
         
-        const transformedData = transformV2ToProductData(extractResult.extractedData);
-        onDataExtracted(transformedData, extractResult.extractedText || "", backendQualityScore);
+        const transformedData = transformV2ToProductData(result.extractedData);
+        onDataExtracted(transformedData, result.extractedText || "", backendQualityScore);
         
         // Enhanced feedback with diagnostic information
-        const providerName = extractResult.extractionSource || extractResult.metadata?.provider || 'V2';
+        const providerName = result.extractionSource || result.metadata?.provider || 'V2';
         const providerIcon = providerName === 'anthropic' ? '🤖' : 
                            providerName === 'google' ? '🧠' : 
                            providerName === 'openai' ? '🚀' : '🔧';
         
-        const extractionType = extractResult.metadata?.extractionType || 'v2_extraction';
-        const fallbackContext = extractResult.metadata?.fallbackContext;
+        const extractionType = result.metadata?.extractionType || 'v2_extraction';
+        const fallbackContext = result.metadata?.fallbackContext;
         
         // Check for hallucination detection
-        const droppedFields = extractResult.metadata?.validationReport?.droppedFields || 0;
+        const droppedFields = result.metadata?.validationReport?.droppedFields || 0;
         if (droppedFields > 0) {
           toast({
             title: "🚨 Hallucination détectée",

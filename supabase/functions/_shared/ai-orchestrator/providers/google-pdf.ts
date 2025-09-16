@@ -53,52 +53,44 @@ export async function callGoogleFromRawPDF(pdfBuffer: ArrayBuffer): Promise<Json
   // 2) Appel génération en référencant le fichier
   const system = "You are an expert oenologist. Read the attached PDF and extract a normalized product spec. Return ONLY valid JSON. Use null when unknown. MANDATORY: Include 'citations' object with evidence and 'confidence' scores for each field.";
   
-  // Strict schema aligned with ProductExtractionSchema
+  // Strict schema aligned with ProductExtractionSchema - Google AI format
   const responseSchema = {
     type: "object",
     properties: {
-      name: { type: ["string", "null"] },
-      producer: { type: ["string", "null"] },
-      appellation: { type: ["string", "null"] },
-      region: { type: ["string", "null"] },
-      country: { type: ["string", "null"] },
-      color: { type: ["string", "null"] },
-      vintage: { type: ["number", "null"] },
+      name: { type: "string", nullable: true },
+      producer: { type: "string", nullable: true },
+      appellation: { type: "string", nullable: true },
+      region: { type: "string", nullable: true },
+      country: { type: "string", nullable: true },
+      color: { type: "string", nullable: true },
+      vintage: { type: "number", nullable: true },
       grapes: { 
-        type: ["array", "null"],
+        type: "array",
+        nullable: true,
         items: { type: "string" }
       },
-      alcohol: { type: ["number", "null"] },
-      sugar: { type: ["number", "null"] },
-      acidity: { type: ["number", "null"] },
-      ph: { type: ["number", "null"] },
-      serving_temperature: { type: ["number", "null"] },
-      aging: { type: ["string", "null"] },
-      awards: { type: ["string", "null"] },
-      tasting_notes: { type: ["string", "null"] },
-      food_pairing: { type: ["string", "null"] },
-      storage_conditions: { type: ["string", "null"] },
+      alcohol: { type: "number", nullable: true },
+      sugar: { type: "number", nullable: true },
+      acidity: { type: "number", nullable: true },
+      ph: { type: "number", nullable: true },
+      serving_temperature: { type: "number", nullable: true },
+      aging: { type: "string", nullable: true },
+      awards: { type: "string", nullable: true },
+      tasting_notes: { type: "string", nullable: true },
+      food_pairing: { type: "string", nullable: true },
+      storage_conditions: { type: "string", nullable: true },
       citations: {
         type: "object",
-        additionalProperties: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              page: { type: "number" },
-              evidence: { type: "string" }
-            },
-            required: ["page", "evidence"]
-          }
-        }
+        properties: {},
+        description: "Object with field names as keys and arrays of citation objects as values"
       },
       confidence: {
-        type: "object",
-        additionalProperties: { type: "number" }
+        type: "object", 
+        properties: {},
+        description: "Object with field names as keys and confidence scores (0-100) as values"
       }
     },
-    required: ["citations", "confidence"],
-    additionalProperties: false
+    required: ["citations", "confidence"]
   };
 
   const gen = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${k}`, {
@@ -109,7 +101,9 @@ export async function callGoogleFromRawPDF(pdfBuffer: ArrayBuffer): Promise<Json
         role: "user",
         parts: [
           { text: system },
-          { fileData: { fileUri: file?.uri ?? undefined, mimeType: "application/pdf" } }
+          file?.uri 
+            ? { fileData: { fileUri: file.uri, mimeType: "application/pdf" } }
+            : { inlineData: { mimeType: "application/pdf", data: btoa(String.fromCharCode(...new Uint8Array(pdfBuffer))) } }
         ]
       }],
       generationConfig: { 
