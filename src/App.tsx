@@ -20,6 +20,7 @@ import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import ProductNew from "./pages/ProductNew";
 import ProductDetail from "./pages/ProductDetail";
+import AnalyzePdfRaw from "./pages/AnalyzePdfRaw";
 import Project from "./pages/Project";
 import ProjectNew from "./pages/ProjectNew";
 import ProjectAnalysis from "./pages/ProjectAnalysis";
@@ -107,6 +108,11 @@ const AppLayout = () => {
           <Route path="/products/:id" element={
             <ProtectedRoute>
               <ProductDetail />
+            </ProtectedRoute>
+          } />
+          <Route path="/analyze-pdf-raw" element={
+            <ProtectedRoute>
+              <AnalyzePdfRaw />
             </ProtectedRoute>
           } />
           <Route path="/projects" element={
