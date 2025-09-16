@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "@/hooks/use-toast";
-import { useUploadProductFile, useExtractProductData, ProductData } from "@/hooks/useProducts";
+import { useUploadProductFile, useExtractProductData, useAnalyzePdfRaw, ProductData } from "@/hooks/useProducts";
 import { useUserAnalytics } from '@/hooks/useUserAnalytics';
 import { useProductionOptimizations } from '@/hooks/useProductionOptimizations';
 import { ExtractionDebugDialog } from "./ExtractionDebugDialog";
@@ -33,8 +33,12 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
 
   const uploadMutation = useUploadProductFile();
   const extractMutation = useExtractProductData();
+  const analyzeMutation = useAnalyzePdfRaw();
   const { trackProductWorkflow, trackError, trackPerformance } = useUserAnalytics();
   const { handleError } = useProductionOptimizations();
+
+  // Check if we're in strict AI mode
+  const isStrictMode = import.meta.env.VITE_STRICT_AI_MODE === 'true';
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
@@ -59,6 +63,54 @@ export const ProductUpload = ({ organizationId, onDataExtracted, addExtractionRe
 
       const startTime = performance.now();
 
+      if (isStrictMode) {
+        // Mode Strict: Direct file analysis without upload to storage
+        setCurrentStep('extracting');
+        setExtractionProgress(0);
+
+        // Simulate extraction progress
+        const extractInterval = setInterval(() => {
+          setExtractionProgress(prev => Math.min(prev + 5, 90));
+        }, 200);
+
+        const rawResult = await analyzeMutation.mutateAsync({ file });
+        clearInterval(extractInterval);
+        setExtractionProgress(100);
+
+        setCurrentStep('complete');
+
+        // Create a compatible result object for strict mode
+        const strictResult = {
+          data: { 
+            name: 'Analyse PDF Brute',
+            category: 'wine' as const,
+            rawText: rawResult 
+          } as ProductData & { rawText: string },
+          text: rawResult,
+          rawData: rawResult,
+          metadata: { 
+            filename: file.name,
+            extractionSource: 'analyze-pdf-raw'
+          }
+        };
+
+        setExtractionResult(strictResult);
+        setProcessedFileName(file.name);
+
+        // Track successful raw analysis
+        await trackProductWorkflow('raw_analysis', undefined, undefined, {
+          success: true,
+          extraction_time: performance.now() - startTime,
+          provider: 'analyze-pdf-raw',
+          file_name: file.name,
+          file_size: file.size,
+        });
+
+        onDataExtracted(strictResult.data, strictResult.text, 0);
+        return;
+      }
+
+      // Standard Mode: Upload to storage then extract
       // Step 1: Upload file
       setCurrentStep('uploading');
       setUploadProgress(0);

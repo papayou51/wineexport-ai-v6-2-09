@@ -95,6 +95,34 @@ export const useCreateProduct = () => {
   });
 };
 
+// Hook for raw PDF analysis using analyze-pdf-raw function
+export const useAnalyzePdfRaw = () => {
+  return useMutation({
+    mutationFn: async ({ file }: { file: File }) => {
+      console.log('🔄 [DEBUG] Début analyse PDF brute:', { fileName: file.name, size: file.size });
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-pdf-raw`, {
+        method: 'POST',
+        body: formData,
+      });
+      
+      const rawText = await response.text();
+      
+      if (!response.ok) {
+        console.error('❌ [DEBUG] Erreur analyse PDF brute:', rawText);
+        throw new Error(rawText);
+      }
+      
+      console.log('✅ [DEBUG] Analyse PDF brute réussie:', { textLength: rawText.length });
+      
+      return rawText;
+    },
+  });
+};
+
 export const useExtractProductData = () => {
   return useMutation({
     mutationFn: async ({ fileUrl, fileName, organizationId }: {
