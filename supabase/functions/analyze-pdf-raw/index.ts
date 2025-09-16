@@ -70,7 +70,7 @@ serve(async (req) => {
     // Étape A — upload du PDF TEL QUEL à OpenAI (aucune lecture/parse côté app)
     const fd = new FormData();
     fd.append("file", file, file.name);
-    fd.append("purpose", "input");
+    fd.append("purpose", "vision");
 
     const upRes = await fetch(`${OPENAI_API}/files`, {
       method: "POST",
@@ -81,10 +81,9 @@ serve(async (req) => {
     if (!upRes.ok) {
       const t = await upRes.text();
       console.error("❌ OpenAI /files error:", t);
-      return new Response(getErrorMessage(502, "Erreur d'upload du fichier"), {
-        status: 502,
-        headers: { ...corsHeaders, "Content-Type": "text/plain; charset=UTF-8" },
-      });
+      return new Response(`OpenAI /files error: ${t}`,
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "text/plain; charset=UTF-8" } }
+      );
     }
 
     const uploaded = await upRes.json();
@@ -104,17 +103,13 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",              // modèle compatible fichiers/PDF
-        response_format: { type: "text" }, // on exige un TEXTE BRUT
-        tool_choice: "none",               // aucune tool/function
+        model: "gpt-4o-mini",
+        instructions:
+          "Lis UNIQUEMENT le PDF fourni. Réponds en TEXTE BRUT (aucun markdown/HTML). " +
+          "Conserve exactement les espaces et les sauts de ligne. Ne normalise rien.",
+        response_format: { type: "text" },
+        tool_choice: "none",
         input: [
-          {
-            role: "system",
-            content:
-              "Tu es un moteur d'analyse. Lis UNIQUEMENT le PDF fourni. Réponds en TEXTE BRUT, " +
-              "sans markdown ni HTML. Conserve exactement les espaces et sauts de ligne. Ne résume pas le fichier, " +
-              "donne ton analyse détaillée du contenu tel que lu.",
-          },
           {
             role: "user",
             content: [
@@ -132,10 +127,9 @@ serve(async (req) => {
     if (!respRes.ok) {
       const t = await respRes.text();
       console.error("❌ OpenAI /responses error:", t);
-      return new Response(getErrorMessage(502, "Erreur de traitement IA"), {
-        status: 502,
-        headers: { ...corsHeaders, "Content-Type": "text/plain; charset=UTF-8" },
-      });
+      return new Response(`OpenAI /responses error: ${t}`,
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "text/plain; charset=UTF-8" } }
+      );
     }
 
     const data = await respRes.json();
