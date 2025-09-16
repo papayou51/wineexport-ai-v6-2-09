@@ -57,7 +57,7 @@ async function callResponses(model: string, fileId: string) {
     instructions:
       "Lis UNIQUEMENT le PDF fourni. Réponds en TEXTE BRUT (aucun markdown/HTML). " +
       "Conserve exactement les espaces et les sauts de ligne. Ne normalise rien.",
-    text: { format: { type: "plain" } },
+    text: { format: { type: "text" } },
     tool_choice: "none",
     input: [
       {
@@ -167,6 +167,7 @@ serve(async (req) => {
 
     const data = await res.json();
     const raw =
+      data?.output_text ??
       data?.output?.[0]?.content?.[0]?.text ??
       data?.choices?.[0]?.message?.content ?? "";
 
