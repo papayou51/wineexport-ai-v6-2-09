@@ -11,6 +11,78 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+// Helper function to upload PDF with purpose fallback
+async function uploadFileForResponses(file: File, apiKey: string, base: string) {
+  // certains déploiements refusent PDF avec "input"
+  const purposes = ["assistants", "user_data", "input"];
+  let lastErr = "";
+
+  for (const purpose of purposes) {
+    const fd = new FormData();
+    fd.append("file", file, file.name || "document.pdf");
+    fd.append("purpose", purpose);
+
+    const up = await fetch(`${base}/files`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: fd,
+    });
+
+    if (up.ok) {
+      const j = await up.json();
+      console.log(`[files] Uploaded with purpose="${purpose}" → ${j?.id}`);
+      return j?.id as string;
+    }
+
+    const t = await up.text();
+    lastErr = t;
+    console.warn(`[files] purpose="${purpose}" refused (${up.status}).`, t);
+
+    // si on voit "Invalid file format application/pdf" on essaie le suivant
+    if (/Invalid file format .*application\/pdf/i.test(t)) continue;
+
+    // autre erreur bloquante → on remonte
+    throw new Error(`OpenAI /files (${purpose}) error: ${t}`);
+  }
+
+  throw new Error(
+    `OpenAI /files refused PDF for all purposes (assistants,user_data,input). Last: ${lastErr}`
+  );
+}
+
+// Helper function for /responses call with model fallback
+async function callResponses(model: string, fileId: string) {
+  const payload = {
+    model,
+    instructions:
+      "Lis UNIQUEMENT le PDF fourni. Réponds en TEXTE BRUT (aucun markdown/HTML). " +
+      "Conserve exactement les espaces et les sauts de ligne. Ne normalise rien.",
+    response_format: { type: "text" },
+    tool_choice: "none",
+    input: [
+      {
+        role: "user",
+        content: [
+          { type: "input_text", text: "Analyse le PDF joint en texte brut :" },
+          { type: "input_file", file_id: fileId },
+        ],
+      },
+    ],
+    temperature: 0.2,
+    top_p: 1,
+    max_output_tokens: 8192,
+  };
+
+  return fetch(`${OPENAI_API}/responses`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
 // Enhanced error messages for better UX
 const getErrorMessage = (status: number, details?: string) => {
   switch (status) {
@@ -67,81 +139,39 @@ serve(async (req) => {
 
     console.log(`📄 Analyzing PDF (no local parsing): ${file.name} (${Math.round(file.size / 1024)} KB)`);
 
-    // Étape A — upload du PDF TEL QUEL à OpenAI (aucune lecture/parse côté app)
-    const fd = new FormData();
-    fd.append("file", file, file.name);
-    fd.append("purpose", "vision");
+    // Étape A — upload du PDF TEL QUEL à OpenAI avec purpose fallback
+    const fileId = await uploadFileForResponses(file, OPENAI_API_KEY!, OPENAI_API);
 
-    const upRes = await fetch(`${OPENAI_API}/files`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
-      body: fd,
-    });
-
-    if (!upRes.ok) {
-      const t = await upRes.text();
-      console.error("❌ OpenAI /files error:", t);
-      return new Response(`OpenAI /files error: ${t}`,
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "text/plain; charset=UTF-8" } }
-      );
+    // Étape B — appel /responses avec fallback modèle
+    let res = await callResponses("gpt-4o-mini", fileId);
+    if (!res.ok) {
+      const t = await res.text();
+      console.warn("[responses] gpt-4o-mini refused:", t);
+      if (/input_file|unsupported|not supported/i.test(t)) {
+        res = await callResponses("gpt-4.1", fileId);
+      } else {
+        return new Response(`OpenAI /responses error: ${t}`, {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "text/plain; charset=UTF-8" },
+        });
+      }
     }
 
-    const uploaded = await upRes.json();
-    const fileId = uploaded?.id as string;
-    if (!fileId) {
-      return new Response(getErrorMessage(502, "No file id returned by OpenAI"), {
+    if (!res.ok) {
+      const t = await res.text();
+      return new Response(`OpenAI /responses error: ${t}`, {
         status: 502,
         headers: { ...corsHeaders, "Content-Type": "text/plain; charset=UTF-8" },
       });
     }
 
-    // Étape B — appel /responses avec le PDF en entrée (STRICTEMENT IA, pas de tools)
-    const respRes = await fetch(`${OPENAI_API}/responses`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        instructions:
-          "Lis UNIQUEMENT le PDF fourni. Réponds en TEXTE BRUT (aucun markdown/HTML). " +
-          "Conserve exactement les espaces et les sauts de ligne. Ne normalise rien.",
-        response_format: { type: "text" },
-        tool_choice: "none",
-        input: [
-          {
-            role: "user",
-            content: [
-              { type: "input_text", text: "Analyse le PDF joint en texte brut :" },
-              { type: "input_file", file_id: fileId },
-            ],
-          },
-        ],
-        temperature: 0.2,
-        top_p: 1,
-        max_output_tokens: 8192,
-      }),
-    });
-
-    if (!respRes.ok) {
-      const t = await respRes.text();
-      console.error("❌ OpenAI /responses error:", t);
-      return new Response(`OpenAI /responses error: ${t}`,
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "text/plain; charset=UTF-8" } }
-      );
-    }
-
-    const data = await respRes.json();
-
-    // Chemin standard de la Responses API
+    const data = await res.json();
     const raw =
       data?.output?.[0]?.content?.[0]?.text ??
-      data?.choices?.[0]?.message?.content ?? // fallback si variation SDK
-      "";
+      data?.choices?.[0]?.message?.content ?? "";
 
     if (!raw) {
-      return new Response(getErrorMessage(502, "Empty AI output"), {
+      return new Response("Empty AI output", {
         status: 502,
         headers: { ...corsHeaders, "Content-Type": "text/plain; charset=UTF-8" },
       });
